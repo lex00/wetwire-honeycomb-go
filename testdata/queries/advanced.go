@@ -21,7 +21,12 @@ var AdvancedQuery = query.Query{
 		query.Equals("environment", "production"),
 		query.Contains("path", "/api/"),
 	},
-	Limit: 100,
+	Orders: []query.Order{
+		{Op: "COUNT", Order: "descending"},
+		{Column: "service", Order: "ascending"},
+	},
+	Granularity: 300,
+	Limit:       100,
 }
 
 // MetricsQuery demonstrates various calculation types

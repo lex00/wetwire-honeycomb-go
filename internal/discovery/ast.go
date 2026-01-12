@@ -112,7 +112,7 @@ func extractCalculation(expr ast.Expr) Calculation {
 	if call, ok := expr.(*ast.CallExpr); ok {
 		if sel, ok := call.Fun.(*ast.SelectorExpr); ok {
 			if ident, ok := sel.X.(*ast.Ident); ok && ident.Name == "query" {
-				calc.Op = sel.Sel.Name
+				calc.Op = normalizeCalculationOp(sel.Sel.Name)
 
 				// Extract column argument if present
 				if len(call.Args) > 0 {
@@ -125,7 +125,7 @@ func extractCalculation(expr ast.Expr) Calculation {
 	// Handle composite literal: query.Calculation{Op: "P99", Column: "duration"}
 	if comp, ok := expr.(*ast.CompositeLit); ok {
 		if op := extractFieldValue(comp, "Op"); op != nil {
-			calc.Op = extractStringLiteral(op)
+			calc.Op = normalizeCalculationOp(extractStringLiteral(op))
 		}
 		if col := extractFieldValue(comp, "Column"); col != nil {
 			calc.Column = extractStringLiteral(col)
@@ -136,6 +136,34 @@ func extractCalculation(expr ast.Expr) Calculation {
 	}
 
 	return calc
+}
+
+// normalizeCalculationOp normalizes calculation operation names to uppercase Honeycomb format.
+func normalizeCalculationOp(funcName string) string {
+	mapping := map[string]string{
+		"Count":         "COUNT",
+		"CountDistinct": "COUNT_DISTINCT",
+		"Sum":           "SUM",
+		"Avg":           "AVG",
+		"Max":           "MAX",
+		"Min":           "MIN",
+		"P50":           "P50",
+		"P75":           "P75",
+		"P90":           "P90",
+		"P95":           "P95",
+		"P99":           "P99",
+		"P999":          "P999",
+		"Heatmap":       "HEATMAP",
+		"Rate":          "RATE",
+		"RateSum":       "RATE_SUM",
+		"RateAvg":       "RATE_AVG",
+		"RateMax":       "RATE_MAX",
+		"Concurrency":   "CONCURRENCY",
+	}
+	if op, ok := mapping[funcName]; ok {
+		return op
+	}
+	return strings.ToUpper(funcName)
 }
 
 // extractTimeRange extracts time range information from an expression.
@@ -355,4 +383,42 @@ func mapFilterFuncToOp(funcName string) string {
 		return op
 	}
 	return strings.ToLower(funcName)
+}
+
+// extractOrders extracts order specifications from a composite literal.
+func extractOrders(expr ast.Expr) []Order {
+	var result []Order
+
+	comp, ok := expr.(*ast.CompositeLit)
+	if !ok {
+		return result
+	}
+
+	for _, elt := range comp.Elts {
+		if order := extractOrder(elt); order.Column != "" || order.Op != "" {
+			result = append(result, order)
+		}
+	}
+
+	return result
+}
+
+// extractOrder extracts a single order specification from an expression.
+func extractOrder(expr ast.Expr) Order {
+	var order Order
+
+	// Handle composite literal: query.Order{Column: "endpoint", Order: "descending"}
+	if comp, ok := expr.(*ast.CompositeLit); ok {
+		if col := extractFieldValue(comp, "Column"); col != nil {
+			order.Column = extractStringLiteral(col)
+		}
+		if op := extractFieldValue(comp, "Op"); op != nil {
+			order.Op = extractStringLiteral(op)
+		}
+		if ord := extractFieldValue(comp, "Order"); ord != nil {
+			order.Order = extractStringLiteral(ord)
+		}
+	}
+
+	return order
 }

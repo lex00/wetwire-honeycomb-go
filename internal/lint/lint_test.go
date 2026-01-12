@@ -440,6 +440,217 @@ func TestLintQueries_SortedByFileAndLine(t *testing.T) {
 	}
 }
 
+func TestLintQueriesWithConfig(t *testing.T) {
+	queries := []discovery.DiscoveredQuery{
+		{
+			Name:      "Query1",
+			Package:   "test",
+			File:      "/test/file.go",
+			Line:      10,
+			Dataset:   "", // Missing dataset - WHC001
+			TimeRange: discovery.TimeRange{TimeRange: 3600},
+			Calculations: []discovery.Calculation{
+				{Op: "COUNT"},
+			},
+		},
+	}
+
+	// Test with empty config (all rules enabled)
+	results := LintQueriesWithConfig(queries, LintConfig{})
+	if !hasResult(results, "WHC001") {
+		t.Error("Expected WHC001 with empty config")
+	}
+
+	// Test with config that disables WHC001
+	config := LintConfig{DisabledRules: []string{"WHC001"}}
+	results = LintQueriesWithConfig(queries, config)
+	if hasResult(results, "WHC001") {
+		t.Error("WHC001 should be disabled")
+	}
+
+	// Test severity overrides
+	configWithOverride := LintConfig{
+		SeverityOverrides: map[string]string{
+			"WHC001": "warning", // Override error to warning
+		},
+	}
+	results = LintQueriesWithConfig(queries, configWithOverride)
+	if len(results) > 0 && results[0].Rule == "WHC001" && results[0].Severity != "warning" {
+		t.Errorf("Expected WHC001 to be overridden to warning, got %s", results[0].Severity)
+	}
+}
+
+func TestHasErrors(t *testing.T) {
+	resultsWithError := []LintResult{
+		{Rule: "WHC001", Severity: "error"},
+		{Rule: "WHC004", Severity: "warning"},
+	}
+
+	if !HasErrors(resultsWithError) {
+		t.Error("HasErrors should return true when there are errors")
+	}
+
+	resultsNoError := []LintResult{
+		{Rule: "WHC004", Severity: "warning"},
+		{Rule: "WHC005", Severity: "warning"},
+	}
+
+	if HasErrors(resultsNoError) {
+		t.Error("HasErrors should return false when there are no errors")
+	}
+
+	if HasErrors(nil) {
+		t.Error("HasErrors should return false for nil slice")
+	}
+}
+
+func TestHasWarnings(t *testing.T) {
+	resultsWithWarning := []LintResult{
+		{Rule: "WHC001", Severity: "error"},
+		{Rule: "WHC004", Severity: "warning"},
+	}
+
+	if !HasWarnings(resultsWithWarning) {
+		t.Error("HasWarnings should return true when there are warnings")
+	}
+
+	resultsNoWarning := []LintResult{
+		{Rule: "WHC001", Severity: "error"},
+		{Rule: "WHC002", Severity: "error"},
+	}
+
+	if HasWarnings(resultsNoWarning) {
+		t.Error("HasWarnings should return false when there are no warnings")
+	}
+
+	if HasWarnings(nil) {
+		t.Error("HasWarnings should return false for nil slice")
+	}
+}
+
+func TestCountByRule(t *testing.T) {
+	results := []LintResult{
+		{Rule: "WHC001", Severity: "error"},
+		{Rule: "WHC001", Severity: "error"},
+		{Rule: "WHC002", Severity: "error"},
+		{Rule: "WHC004", Severity: "warning"},
+	}
+
+	counts := CountByRule(results)
+
+	if counts["WHC001"] != 2 {
+		t.Errorf("Expected WHC001 count 2, got %d", counts["WHC001"])
+	}
+	if counts["WHC002"] != 1 {
+		t.Errorf("Expected WHC002 count 1, got %d", counts["WHC002"])
+	}
+	if counts["WHC004"] != 1 {
+		t.Errorf("Expected WHC004 count 1, got %d", counts["WHC004"])
+	}
+
+	emptyCounts := CountByRule(nil)
+	if len(emptyCounts) != 0 {
+		t.Error("CountByRule should return empty map for nil slice")
+	}
+}
+
+func TestCountBySeverity(t *testing.T) {
+	results := []LintResult{
+		{Rule: "WHC001", Severity: "error"},
+		{Rule: "WHC002", Severity: "error"},
+		{Rule: "WHC004", Severity: "warning"},
+	}
+
+	counts := CountBySeverity(results)
+
+	if counts["error"] != 2 {
+		t.Errorf("Expected error count 2, got %d", counts["error"])
+	}
+	if counts["warning"] != 1 {
+		t.Errorf("Expected warning count 1, got %d", counts["warning"])
+	}
+
+	emptyCounts := CountBySeverity(nil)
+	if len(emptyCounts) != 0 {
+		t.Error("CountBySeverity should return empty map for nil slice")
+	}
+}
+
+func TestFilterByRule(t *testing.T) {
+	results := []LintResult{
+		{Rule: "WHC001", Severity: "error"},
+		{Rule: "WHC001", Severity: "error"},
+		{Rule: "WHC002", Severity: "error"},
+		{Rule: "WHC004", Severity: "warning"},
+	}
+
+	filtered := FilterByRule(results, "WHC001")
+	if len(filtered) != 2 {
+		t.Errorf("Expected 2 WHC001 results, got %d", len(filtered))
+	}
+
+	for _, r := range filtered {
+		if r.Rule != "WHC001" {
+			t.Errorf("Expected all results to be WHC001, got %s", r.Rule)
+		}
+	}
+
+	noMatch := FilterByRule(results, "WHC999")
+	if len(noMatch) != 0 {
+		t.Errorf("Expected 0 results for non-existent rule, got %d", len(noMatch))
+	}
+}
+
+func TestFilterBySeverity(t *testing.T) {
+	results := []LintResult{
+		{Rule: "WHC001", Severity: "error"},
+		{Rule: "WHC002", Severity: "error"},
+		{Rule: "WHC004", Severity: "warning"},
+	}
+
+	errors := FilterBySeverity(results, "error")
+	if len(errors) != 2 {
+		t.Errorf("Expected 2 error results, got %d", len(errors))
+	}
+
+	for _, r := range errors {
+		if r.Severity != "error" {
+			t.Errorf("Expected all results to be errors, got %s", r.Severity)
+		}
+	}
+
+	warnings := FilterBySeverity(results, "warning")
+	if len(warnings) != 1 {
+		t.Errorf("Expected 1 warning result, got %d", len(warnings))
+	}
+}
+
+func TestLintQueries_WHC009_AbsoluteTimeRange(t *testing.T) {
+	// Test with absolute time range exceeding 7 days
+	queries := []discovery.DiscoveredQuery{
+		{
+			Name:    "TestQuery",
+			Package: "test",
+			File:    "/test/file.go",
+			Line:    10,
+			Dataset: "production",
+			TimeRange: discovery.TimeRange{
+				StartTime: 1000000,
+				EndTime:   1000000 + 8*86400, // 8 days duration
+			},
+			Calculations: []discovery.Calculation{
+				{Op: "COUNT"},
+			},
+		},
+	}
+
+	results := LintQueries(queries)
+
+	if !hasResult(results, "WHC009") {
+		t.Error("Expected WHC009 error for absolute time range exceeding 7 days")
+	}
+}
+
 func TestLintQueries_RealWorldExample(t *testing.T) {
 	// Test with real testdata
 	testDir := filepath.Join(getRepoRoot(t), "testdata", "queries")

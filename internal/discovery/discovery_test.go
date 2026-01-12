@@ -456,6 +456,201 @@ func unexportedFunc() query.Query {
 	}
 }
 
+func TestDiscoverQueries_OrdersAndGranularity(t *testing.T) {
+	// Test discovering queries with Orders and Granularity
+	testDir := filepath.Join(getRepoRoot(t), "testdata", "queries")
+
+	discovered, err := DiscoverQueries(testDir)
+	if err != nil {
+		t.Fatalf("DiscoverQueries failed: %v", err)
+	}
+
+	advQuery := findQuery(discovered, "AdvancedQuery")
+	if advQuery == nil {
+		t.Fatal("AdvancedQuery query not found")
+	}
+
+	// Verify FilterCombination
+	if advQuery.FilterCombination != "AND" {
+		t.Errorf("Expected FilterCombination 'AND', got %q", advQuery.FilterCombination)
+	}
+
+	// Verify Granularity
+	if advQuery.Granularity != 300 {
+		t.Errorf("Expected Granularity 300, got %d", advQuery.Granularity)
+	}
+
+	// Verify Orders
+	if len(advQuery.Orders) != 2 {
+		t.Errorf("Expected 2 orders, got %d", len(advQuery.Orders))
+	} else {
+		// First order by calculation
+		if advQuery.Orders[0].Op != "COUNT" {
+			t.Errorf("Expected first order Op 'COUNT', got %q", advQuery.Orders[0].Op)
+		}
+		if advQuery.Orders[0].Order != "descending" {
+			t.Errorf("Expected first order direction 'descending', got %q", advQuery.Orders[0].Order)
+		}
+
+		// Second order by column
+		if advQuery.Orders[1].Column != "service" {
+			t.Errorf("Expected second order Column 'service', got %q", advQuery.Orders[1].Column)
+		}
+		if advQuery.Orders[1].Order != "ascending" {
+			t.Errorf("Expected second order direction 'ascending', got %q", advQuery.Orders[1].Order)
+		}
+	}
+}
+
+func TestDiscoverQueries_TimeRangeFunctions(t *testing.T) {
+	// Test various time range functions
+	testDir := filepath.Join(getRepoRoot(t), "testdata", "queries")
+
+	discovered, err := DiscoverQueries(testDir)
+	if err != nil {
+		t.Fatalf("DiscoverQueries failed: %v", err)
+	}
+
+	// Test Last24Hours (86400 seconds)
+	advQuery := findQuery(discovered, "AdvancedQuery")
+	if advQuery != nil {
+		if advQuery.TimeRange.TimeRange != 86400 {
+			t.Errorf("Expected Last24Hours = 86400 seconds, got %d", advQuery.TimeRange.TimeRange)
+		}
+	}
+
+	// Test Minutes(30) = 1800 seconds
+	metricsQuery := findQuery(discovered, "MetricsQuery")
+	if metricsQuery != nil {
+		if metricsQuery.TimeRange.TimeRange != 1800 {
+			t.Errorf("Expected Minutes(30) = 1800 seconds, got %d", metricsQuery.TimeRange.TimeRange)
+		}
+	}
+
+	// Test Days(7) = 604800 seconds
+	errorTracking := findQuery(discovered, "ErrorTracking")
+	if errorTracking != nil {
+		if errorTracking.TimeRange.TimeRange != 604800 {
+			t.Errorf("Expected Days(7) = 604800 seconds, got %d", errorTracking.TimeRange.TimeRange)
+		}
+	}
+}
+
+func TestDiscoverQueries_CalculationNormalization(t *testing.T) {
+	// Test that calculation operations are normalized to uppercase
+	testDir := filepath.Join(getRepoRoot(t), "testdata", "queries")
+
+	discovered, err := DiscoverQueries(testDir)
+	if err != nil {
+		t.Fatalf("DiscoverQueries failed: %v", err)
+	}
+
+	advQuery := findQuery(discovered, "AdvancedQuery")
+	if advQuery == nil {
+		t.Fatal("AdvancedQuery query not found")
+	}
+
+	// Verify all calculation ops are uppercase
+	expectedOps := []string{"COUNT", "P99", "AVG", "MAX"}
+	for i, calc := range advQuery.Calculations {
+		if i < len(expectedOps) && calc.Op != expectedOps[i] {
+			t.Errorf("Expected calculation %d Op %q, got %q", i, expectedOps[i], calc.Op)
+		}
+	}
+
+	// Test MetricsQuery for more calculation types
+	metricsQuery := findQuery(discovered, "MetricsQuery")
+	if metricsQuery != nil {
+		expectedMetricOps := []string{"SUM", "AVG", "P95", "COUNT_DISTINCT"}
+		for i, calc := range metricsQuery.Calculations {
+			if i < len(expectedMetricOps) && calc.Op != expectedMetricOps[i] {
+				t.Errorf("Expected MetricsQuery calculation %d Op %q, got %q", i, expectedMetricOps[i], calc.Op)
+			}
+		}
+	}
+}
+
+func TestDiscoverQueries_FilterOperators(t *testing.T) {
+	// Test various filter operators are correctly extracted
+	testDir := filepath.Join(getRepoRoot(t), "testdata", "queries")
+
+	discovered, err := DiscoverQueries(testDir)
+	if err != nil {
+		t.Fatalf("DiscoverQueries failed: %v", err)
+	}
+
+	advQuery := findQuery(discovered, "AdvancedQuery")
+	if advQuery == nil {
+		t.Fatal("AdvancedQuery query not found")
+	}
+
+	// Verify filter operators
+	expectedFilters := []struct {
+		column string
+		op     string
+	}{
+		{"duration_ms", ">"},
+		{"environment", "="},
+		{"path", "contains"},
+	}
+
+	for i, expected := range expectedFilters {
+		if i >= len(advQuery.Filters) {
+			t.Errorf("Missing filter %d", i)
+			continue
+		}
+		if advQuery.Filters[i].Column != expected.column {
+			t.Errorf("Filter %d Column: expected %q, got %q", i, expected.column, advQuery.Filters[i].Column)
+		}
+		if advQuery.Filters[i].Op != expected.op {
+			t.Errorf("Filter %d Op: expected %q, got %q", i, expected.op, advQuery.Filters[i].Op)
+		}
+	}
+
+	// Test MetricsQuery for more filter types
+	metricsQuery := findQuery(discovered, "MetricsQuery")
+	if metricsQuery != nil {
+		// Check for LT and Exists filters
+		foundLT := false
+		foundExists := false
+		for _, f := range metricsQuery.Filters {
+			if f.Op == "<" {
+				foundLT = true
+			}
+			if f.Op == "exists" {
+				foundExists = true
+			}
+		}
+		if !foundLT {
+			t.Error("Expected LT filter in MetricsQuery")
+		}
+		if !foundExists {
+			t.Error("Expected Exists filter in MetricsQuery")
+		}
+	}
+
+	// Test ErrorTracking for NotEquals and DoesNotContain
+	errorTracking := findQuery(discovered, "ErrorTracking")
+	if errorTracking != nil {
+		foundNE := false
+		foundDNC := false
+		for _, f := range errorTracking.Filters {
+			if f.Op == "!=" {
+				foundNE = true
+			}
+			if f.Op == "does-not-contain" {
+				foundDNC = true
+			}
+		}
+		if !foundNE {
+			t.Error("Expected NotEquals filter in ErrorTracking")
+		}
+		if !foundDNC {
+			t.Error("Expected DoesNotContain filter in ErrorTracking")
+		}
+	}
+}
+
 func TestExtractQueryFromComposite_MissingFields(t *testing.T) {
 	// Test extracting query from composite with missing fields
 	tempDir := t.TempDir()
