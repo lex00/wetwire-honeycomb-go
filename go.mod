@@ -3,7 +3,7 @@ module github.com/lex00/wetwire-honeycomb-go
 go 1.23.0
 
 require (
-	github.com/lex00/wetwire-core-go v1.3.1-0.20260112063516-06a69cc2713c
+	github.com/lex00/wetwire-core-go v1.5.0
 	github.com/stretchr/testify v1.11.1
 )
 

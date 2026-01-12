@@ -2,8 +2,8 @@ github.com/anthropics/anthropic-sdk-go v1.19.0 h1:mO6E+ffSzLRvR/YUH9KJC0uGw0uV8G
 github.com/anthropics/anthropic-sdk-go v1.19.0/go.mod h1:WTz31rIUHUHqai2UslPpw5CwXrQP3geYBioRV4WOLvE=
 github.com/davecgh/go-spew v1.1.1 h1:vj9j/u1bqnvCEfJOwUhtlOARqs3+rkHYY13jYWTU97c=
 github.com/davecgh/go-spew v1.1.1/go.mod h1:J7Y8YcW2NihsgmVo/mv3lAwl/skON4iLHjSsI+c5H38=
-github.com/lex00/wetwire-core-go v1.3.1-0.20260112063516-06a69cc2713c h1:9dRku2wUih4w2AKQJA5+En/j1LQ8g6U6IyW1/UFeVDQ=
-github.com/lex00/wetwire-core-go v1.3.1-0.20260112063516-06a69cc2713c/go.mod h1:YQZAyTn0YyXFzgrHSogr7S3bZnt45xuEWjEV3TJKf3A=
+github.com/lex00/wetwire-core-go v1.5.0 h1:YQQIbuSwv1rw3ztliKV4Lc+D8xdT3JWvLUldRG9Ha9o=
+github.com/lex00/wetwire-core-go v1.5.0/go.mod h1:YQZAyTn0YyXFzgrHSogr7S3bZnt45xuEWjEV3TJKf3A=
 github.com/pmezard/go-difflib v1.0.0 h1:4DBwDE0NGyQoBHbLQYPwSUPoCMWR5BEzIk/f1lZbAQM=
 github.com/pmezard/go-difflib v1.0.0/go.mod h1:iKH77koFhYxTK1pcRnkKkqfTogsbg7gZNVY4sRDYZ/4=
 github.com/stretchr/testify v1.11.1 h1:7s2iGBzp5EwR7/aIZr8ao5+dra3wiQyKjjFuvgVKu7U=
