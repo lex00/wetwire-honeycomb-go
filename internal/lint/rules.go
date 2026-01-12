@@ -28,6 +28,7 @@ func AllRules() []Rule {
 		WHC008MissingLimitWithBreakdowns(),
 		WHC009TimeRangeExceeds7Days(),
 		WHC010ExcessiveFilterCount(),
+		WHC011CircularDependency(),
 	}
 }
 
@@ -345,6 +346,70 @@ func WHC010ExcessiveFilterCount() Rule {
 			}
 
 			return nil
+		},
+	}
+}
+
+// WHC011CircularDependency checks for potential circular dependencies in queries.
+// In Honeycomb queries, circular dependencies can occur when:
+// - A query references itself through derived columns or query composition
+// - Multiple queries reference each other creating a logical loop
+//
+// Since individual DiscoveredQuery objects don't contain explicit references to other
+// queries, this rule currently serves as a placeholder that will be extended when
+// cross-query analysis is implemented. For now, it checks for self-referential patterns
+// where a query's name appears in its own filter or calculation column names.
+func WHC011CircularDependency() Rule {
+	return Rule{
+		Code:     "WHC011",
+		Severity: "warning",
+		Message:  "Potential circular dependency detected",
+		Check: func(query discovery.DiscoveredQuery) []LintResult {
+			var results []LintResult
+
+			// Check for self-referential patterns where the query name
+			// appears in filter columns or calculation columns
+			queryNameLower := strings.ToLower(query.Name)
+
+			// Skip if query name is empty or too short to be meaningful
+			if len(queryNameLower) < 3 {
+				return nil
+			}
+
+			// Check filters for self-references
+			for _, filter := range query.Filters {
+				columnLower := strings.ToLower(filter.Column)
+				if strings.Contains(columnLower, queryNameLower) {
+					results = append(results, LintResult{
+						Rule:     "WHC011",
+						Severity: "warning",
+						Message:  fmt.Sprintf("Potential circular dependency: filter column '%s' references query name '%s'", filter.Column, query.Name),
+						File:     query.File,
+						Line:     query.Line,
+						Query:    query.Name,
+					})
+				}
+			}
+
+			// Check calculations for self-references
+			for _, calc := range query.Calculations {
+				if calc.Column == "" {
+					continue
+				}
+				columnLower := strings.ToLower(calc.Column)
+				if strings.Contains(columnLower, queryNameLower) {
+					results = append(results, LintResult{
+						Rule:     "WHC011",
+						Severity: "warning",
+						Message:  fmt.Sprintf("Potential circular dependency: calculation column '%s' references query name '%s'", calc.Column, query.Name),
+						File:     query.File,
+						Line:     query.Line,
+						Query:    query.Name,
+					})
+				}
+			}
+
+			return results
 		},
 	}
 }
