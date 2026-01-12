@@ -14,6 +14,7 @@ import (
 	"github.com/lex00/wetwire-core-go/agent/orchestrator"
 	"github.com/lex00/wetwire-core-go/agent/results"
 	"github.com/lex00/wetwire-honeycomb-go/internal/agent"
+	"github.com/lex00/wetwire-honeycomb-go/internal/kiro"
 	"github.com/spf13/cobra"
 )
 
@@ -46,21 +47,27 @@ Example:
 			if prompt == "" {
 				return fmt.Errorf("prompt is required")
 			}
-			return runDesign(prompt, outputDir, maxLintCycles, stream)
+			return runDesign(prompt, outputDir, maxLintCycles, stream, provider)
 		},
 	}
 
 	cmd.Flags().StringVarP(&outputDir, "output", "o", ".", "Output directory for generated files")
 	cmd.Flags().IntVarP(&maxLintCycles, "max-lint-cycles", "l", 5, "Maximum lint/fix cycles")
 	cmd.Flags().BoolVarP(&stream, "stream", "s", true, "Stream AI responses")
-	cmd.Flags().StringVar(&provider, "provider", "anthropic", "AI provider (currently only 'anthropic' supported)")
+	cmd.Flags().StringVar(&provider, "provider", "anthropic", "AI provider: 'anthropic' or 'kiro'")
 
 	return cmd
 }
 
-// runDesign starts an AI-assisted design session using the Anthropic API.
+// runDesign starts an AI-assisted design session using the specified provider.
 // It creates a runner agent that generates code, runs the linter, and fixes issues.
-func runDesign(prompt, outputDir string, maxLintCycles int, stream bool) error {
+func runDesign(prompt, outputDir string, maxLintCycles int, stream bool, provider string) error {
+	// Handle kiro provider
+	if provider == "kiro" {
+		return runDesignKiro(prompt)
+	}
+
+	// Default to anthropic provider
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
@@ -123,4 +130,14 @@ func runDesign(prompt, outputDir string, maxLintCycles int, stream bool) error {
 	fmt.Printf("Lint passed: %v\n", runner.LintPassed())
 
 	return nil
+}
+
+// runDesignKiro starts a Kiro CLI chat session for interactive design.
+func runDesignKiro(prompt string) error {
+	fmt.Println("Starting Kiro CLI chat session...")
+	fmt.Println("Press Ctrl+C to stop.")
+	fmt.Println()
+
+	// Launch interactive kiro session
+	return kiro.LaunchChat("wetwire-honeycomb-runner", prompt)
 }

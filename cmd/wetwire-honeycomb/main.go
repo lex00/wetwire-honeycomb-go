@@ -72,6 +72,7 @@ Then generate Query JSON:
 		newDesignCmd(),
 		newTestCmd(),
 		newVersionCmd(),
+		newMCPCmd(),
 	)
 
 	if err := rootCmd.Execute(); err != nil {
