@@ -31,6 +31,12 @@ func main() {
 		os.Exit(listCmd(os.Args[2:]))
 	case "import":
 		os.Exit(importCmd(os.Args[2:]))
+	case "validate":
+		os.Exit(validateCmd(os.Args[2:]))
+	case "init":
+		os.Exit(initCmd(os.Args[2:]))
+	case "graph":
+		os.Exit(graphCmd(os.Args[2:]))
 	case "version":
 		fmt.Printf("wetwire-honeycomb %s\n", version)
 		os.Exit(0)
@@ -55,6 +61,9 @@ func printUsage() {
 	fmt.Println("  lint      Check queries for issues")
 	fmt.Println("  list      List all discovered queries")
 	fmt.Println("  import    Convert Query JSON to Go code")
+	fmt.Println("  validate  Validate Query JSON against Honeycomb constraints")
+	fmt.Println("  init      Initialize a new queries directory")
+	fmt.Println("  graph     Show query dependency graph")
 	fmt.Println("  version   Print version information")
 	fmt.Println("  help      Print this help message")
 	fmt.Println()
@@ -478,4 +487,282 @@ func formatValue(v any) string {
 	default:
 		return fmt.Sprintf("%v", val)
 	}
+}
+
+func validateCmd(args []string) int {
+	fs := flag.NewFlagSet("validate", flag.ExitOnError)
+	dryRun := fs.Bool("dry-run", true, "Validate structure only, no API calls")
+	dataset := fs.String("dataset", "", "Target dataset for column validation")
+
+	fs.Usage = func() {
+		fmt.Println("Usage: wetwire-honeycomb validate [flags] [files]")
+		fmt.Println()
+		fmt.Println("Validate Query JSON against Honeycomb constraints.")
+		fmt.Println()
+		fmt.Println("Flags:")
+		fs.PrintDefaults()
+	}
+
+	if err := fs.Parse(args); err != nil {
+		return 1
+	}
+
+	_ = dataset // Used for API validation (future)
+
+	path := "."
+	if fs.NArg() > 0 {
+		path = fs.Arg(0)
+	}
+
+	// Discover queries
+	queries, err := discovery.DiscoverQueries(path)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
+		return 1
+	}
+
+	if len(queries) == 0 {
+		fmt.Println("No queries found to validate")
+		return 0
+	}
+
+	// Validate each query
+	var errors []string
+	for _, q := range queries {
+		errs := validateQuery(q, *dryRun)
+		for _, e := range errs {
+			errors = append(errors, fmt.Sprintf("%s:%d [%s]: %s", q.File, q.Line, q.Name, e))
+		}
+	}
+
+	if len(errors) > 0 {
+		fmt.Println("Validation errors:")
+		for _, e := range errors {
+			fmt.Printf("  %s\n", e)
+		}
+		return 1
+	}
+
+	fmt.Printf("Validated %d queries successfully\n", len(queries))
+	return 0
+}
+
+func validateQuery(q discovery.DiscoveredQuery, dryRun bool) []string {
+	var errors []string
+
+	// Honeycomb constraints
+	const (
+		maxTimeRangeDays  = 7
+		maxBreakdowns     = 100
+		maxCalculations   = 100
+		maxFilters        = 100
+		maxLimitValue     = 10000
+	)
+
+	// Time range check (7 days max = 604800 seconds)
+	if q.TimeRange.TimeRange > maxTimeRangeDays*86400 {
+		errors = append(errors, fmt.Sprintf("time_range exceeds %d days maximum", maxTimeRangeDays))
+	}
+
+	// Breakdown limit
+	if len(q.Breakdowns) > maxBreakdowns {
+		errors = append(errors, fmt.Sprintf("too many breakdowns (%d, max %d)", len(q.Breakdowns), maxBreakdowns))
+	}
+
+	// Calculation limit
+	if len(q.Calculations) > maxCalculations {
+		errors = append(errors, fmt.Sprintf("too many calculations (%d, max %d)", len(q.Calculations), maxCalculations))
+	}
+
+	// Filter limit
+	if len(q.Filters) > maxFilters {
+		errors = append(errors, fmt.Sprintf("too many filters (%d, max %d)", len(q.Filters), maxFilters))
+	}
+
+	// Limit value check
+	if q.Limit > maxLimitValue {
+		errors = append(errors, fmt.Sprintf("limit exceeds maximum (%d, max %d)", q.Limit, maxLimitValue))
+	}
+
+	// Required fields
+	if q.Dataset == "" {
+		errors = append(errors, "missing required field: dataset")
+	}
+
+	if q.TimeRange.TimeRange == 0 && q.TimeRange.StartTime == 0 {
+		errors = append(errors, "missing required field: time_range")
+	}
+
+	if len(q.Calculations) == 0 {
+		errors = append(errors, "missing required field: calculations")
+	}
+
+	return errors
+}
+
+func initCmd(args []string) int {
+	fs := flag.NewFlagSet("init", flag.ExitOnError)
+	pkgName := fs.String("p", "queries", "Package name")
+
+	fs.Usage = func() {
+		fmt.Println("Usage: wetwire-honeycomb init [flags] [directory]")
+		fmt.Println()
+		fmt.Println("Initialize a new queries directory with example files.")
+		fmt.Println()
+		fmt.Println("Flags:")
+		fs.PrintDefaults()
+	}
+
+	if err := fs.Parse(args); err != nil {
+		return 1
+	}
+
+	dir := "queries"
+	if fs.NArg() > 0 {
+		dir = fs.Arg(0)
+	}
+
+	// Create directory
+	if err := os.MkdirAll(dir, 0755); err != nil {
+		fmt.Fprintf(os.Stderr, "Error creating directory: %v\n", err)
+		return 1
+	}
+
+	// Create example query file
+	exampleFile := filepath.Join(dir, "example.go")
+	exampleContent := fmt.Sprintf(`package %s
+
+import "github.com/lex00/wetwire-honeycomb-go/query"
+
+// SlowRequests finds requests taking longer than 500ms
+var SlowRequests = query.Query{
+	Dataset:   "production", // TODO: Change to your dataset
+	TimeRange: query.Hours(2),
+	Breakdowns: []string{"endpoint", "service"},
+	Calculations: []query.Calculation{
+		query.P99("duration_ms"),
+		query.Count(),
+	},
+	Filters: []query.Filter{
+		query.GT("duration_ms", 500),
+	},
+	Limit: 100,
+}
+
+// ErrorRate tracks error percentage by service
+var ErrorRate = query.Query{
+	Dataset:   "production", // TODO: Change to your dataset
+	TimeRange: query.Hours(1),
+	Breakdowns: []string{"service"},
+	Calculations: []query.Calculation{
+		query.Count(),
+	},
+	Filters: []query.Filter{
+		query.GTE("status_code", 400),
+	},
+}
+`, *pkgName)
+
+	if err := os.WriteFile(exampleFile, []byte(exampleContent), 0644); err != nil {
+		fmt.Fprintf(os.Stderr, "Error writing example file: %v\n", err)
+		return 1
+	}
+
+	fmt.Printf("Initialized queries directory: %s\n", dir)
+	fmt.Printf("Created example file: %s\n", exampleFile)
+	fmt.Println()
+	fmt.Println("Next steps:")
+	fmt.Println("  1. Edit the example queries or create new ones")
+	fmt.Println("  2. Run 'wetwire-honeycomb build ./" + dir + "' to generate JSON")
+	fmt.Println("  3. Run 'wetwire-honeycomb lint ./" + dir + "' to check for issues")
+
+	return 0
+}
+
+func graphCmd(args []string) int {
+	fs := flag.NewFlagSet("graph", flag.ExitOnError)
+	format := fs.String("f", "text", "Output format: text, dot")
+
+	fs.Usage = func() {
+		fmt.Println("Usage: wetwire-honeycomb graph [flags] [packages]")
+		fmt.Println()
+		fmt.Println("Show query relationships and dependencies.")
+		fmt.Println()
+		fmt.Println("Flags:")
+		fs.PrintDefaults()
+	}
+
+	if err := fs.Parse(args); err != nil {
+		return 1
+	}
+
+	path := "."
+	if fs.NArg() > 0 {
+		path = fs.Arg(0)
+	}
+
+	// Discover queries
+	queries, err := discovery.DiscoverQueries(path)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
+		return 1
+	}
+
+	if len(queries) == 0 {
+		fmt.Println("No queries found")
+		return 0
+	}
+
+	// Group by dataset
+	byDataset := make(map[string][]discovery.DiscoveredQuery)
+	for _, q := range queries {
+		byDataset[q.Dataset] = append(byDataset[q.Dataset], q)
+	}
+
+	if *format == "dot" {
+		// DOT format for graphviz
+		fmt.Println("digraph queries {")
+		fmt.Println("  rankdir=LR;")
+		fmt.Println("  node [shape=box];")
+		fmt.Println()
+
+		for dataset, dqs := range byDataset {
+			fmt.Printf("  subgraph cluster_%s {\n", sanitizeID(dataset))
+			fmt.Printf("    label=%q;\n", dataset)
+			for _, q := range dqs {
+				fmt.Printf("    %s [label=%q];\n", sanitizeID(q.Name), q.Name)
+			}
+			fmt.Println("  }")
+		}
+
+		fmt.Println("}")
+	} else {
+		// Text format
+		fmt.Printf("Query Graph (%d queries, %d datasets)\n\n", len(queries), len(byDataset))
+
+		for dataset, dqs := range byDataset {
+			fmt.Printf("Dataset: %s\n", dataset)
+			for _, q := range dqs {
+				fmt.Printf("  ├── %s (%s:%d)\n", q.Name, filepath.Base(q.File), q.Line)
+				if len(q.Breakdowns) > 0 {
+					fmt.Printf("  │   └── breakdowns: %v\n", q.Breakdowns)
+				}
+			}
+			fmt.Println()
+		}
+	}
+
+	return 0
+}
+
+func sanitizeID(s string) string {
+	result := ""
+	for _, r := range s {
+		if (r >= 'a' && r <= 'z') || (r >= 'A' && r <= 'Z') || (r >= '0' && r <= '9') || r == '_' {
+			result += string(r)
+		} else {
+			result += "_"
+		}
+	}
+	return result
 }
