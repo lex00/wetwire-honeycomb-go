@@ -2,6 +2,7 @@ package lint
 
 import (
 	"path/filepath"
+	"runtime"
 	"testing"
 
 	"github.com/lex00/wetwire-honeycomb-go/internal/discovery"
@@ -489,7 +490,11 @@ func findResult(results []LintResult, rule string) *LintResult {
 }
 
 func getRepoRoot(t *testing.T) string {
-	// Walk up from current directory to find go.mod
-	dir := "/Users/alex/Documents/checkouts/wetwire-honeycomb-go"
-	return dir
+	// Use runtime.Caller to find the current file's location
+	_, currentFile, _, ok := runtime.Caller(0)
+	if !ok {
+		t.Fatal("Failed to get current file path")
+	}
+	// Go up from internal/lint/ to repo root
+	return filepath.Dir(filepath.Dir(filepath.Dir(currentFile)))
 }
