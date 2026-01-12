@@ -287,6 +287,137 @@ LoginMetrics         auth         queries/auth.go           8
 
 ---
 
+### diff
+
+Compare generated query JSON against existing files.
+
+```bash
+wetwire-honeycomb diff [OPTIONS] [PATH]
+```
+
+**Description:**
+
+Compares the generated query JSON output against an existing JSON file. Useful for detecting drift between Go source and deployed configurations.
+
+**Arguments:**
+
+| Argument | Description | Default |
+|----------|-------------|---------|
+| `PATH` | Path to Go package(s) containing queries | `.` |
+
+**Options:**
+
+| Flag | Description | Default |
+|------|-------------|---------|
+| `--output FILE` | JSON file to compare against (required) | - |
+| `--semantic` | Compare semantic structure instead of text | `false` |
+| `-v, --verbose` | Verbose output | `false` |
+
+**Exit Codes:**
+
+| Code | Meaning |
+|------|---------|
+| 0 | Files are identical |
+| 1 | Files differ |
+| 2 | Error (missing file, invalid JSON, etc.) |
+
+**Examples:**
+
+```bash
+# Compare against existing config
+wetwire-honeycomb diff --output deployed.json ./queries/...
+
+# Semantic comparison (ignores formatting)
+wetwire-honeycomb diff --semantic --output deployed.json ./queries/...
+
+# Verbose mode
+wetwire-honeycomb diff -v --output deployed.json ./queries/...
+```
+
+**Output Format (text diff):**
+
+```
+--- deployed.json (existing)
++++ generated
+-  "time_range": 3600,
++  "time_range": 7200,
+```
+
+**Output Format (semantic):**
+
+```
+Value mismatch at time_range: 3600 vs 7200
+Key missing in existing: filters[2]
+```
+
+---
+
+### watch
+
+Auto-rebuild queries when Go source files change.
+
+```bash
+wetwire-honeycomb watch [OPTIONS] [PATH]
+```
+
+**Description:**
+
+Watches for changes in Go source files and automatically rebuilds query JSON. Uses polling to detect changes.
+
+**Arguments:**
+
+| Argument | Description | Default |
+|----------|-------------|---------|
+| `PATH` | Path to Go package(s) to watch | `.` |
+
+**Options:**
+
+| Flag | Description | Default |
+|------|-------------|---------|
+| `--output FILE` | Write output to FILE on each rebuild | stdout |
+| `--interval N` | Polling interval in seconds | `2` |
+| `-v, --verbose` | Verbose output | `false` |
+
+**Exit Codes:**
+
+| Code | Meaning |
+|------|---------|
+| 0 | Clean exit (Ctrl+C) |
+| 1 | Error during initialization |
+
+**Examples:**
+
+```bash
+# Watch current directory
+wetwire-honeycomb watch
+
+# Watch specific package
+wetwire-honeycomb watch ./queries/...
+
+# Auto-write to file
+wetwire-honeycomb watch --output queries.json ./queries/...
+
+# Custom polling interval
+wetwire-honeycomb watch --interval 5 ./queries/...
+
+# Verbose mode
+wetwire-honeycomb watch -v --output queries.json ./queries/...
+```
+
+**Output:**
+
+```
+Watching ./queries for changes (interval: 2s)
+Press Ctrl+C to stop
+
+[14:32:05] Initial build
+  Build succeeded (3 queries)
+[14:32:45] Changes detected, rebuilding...
+  Wrote queries.json (1234 bytes)
+```
+
+---
+
 ## Global Options
 
 These options work with all commands:

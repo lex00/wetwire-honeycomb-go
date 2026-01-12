@@ -1,11 +1,15 @@
 package main
 
 import (
+	"bytes"
 	"encoding/json"
 	"flag"
 	"fmt"
 	"os"
 	"path/filepath"
+	"reflect"
+	"strings"
+	"time"
 
 	"github.com/lex00/wetwire-honeycomb-go/internal/builder"
 	"github.com/lex00/wetwire-honeycomb-go/internal/discovery"
@@ -37,6 +41,10 @@ func main() {
 		os.Exit(initCmd(os.Args[2:]))
 	case "graph":
 		os.Exit(graphCmd(os.Args[2:]))
+	case "diff":
+		os.Exit(diffCmd(os.Args[2:]))
+	case "watch":
+		os.Exit(watchCmd(os.Args[2:]))
 	case "version":
 		fmt.Printf("wetwire-honeycomb %s\n", version)
 		os.Exit(0)
@@ -64,6 +72,8 @@ func printUsage() {
 	fmt.Println("  validate  Validate Query JSON against Honeycomb constraints")
 	fmt.Println("  init      Initialize a new queries directory")
 	fmt.Println("  graph     Show query dependency graph")
+	fmt.Println("  diff      Compare generated output vs existing config")
+	fmt.Println("  watch     Auto-rebuild on source file changes")
 	fmt.Println("  version   Print version information")
 	fmt.Println("  help      Print this help message")
 	fmt.Println()
@@ -765,4 +775,379 @@ func sanitizeID(s string) string {
 		}
 	}
 	return result
+}
+
+func diffCmd(args []string) int {
+	fs := flag.NewFlagSet("diff", flag.ExitOnError)
+	output := fs.String("output", "", "JSON file to compare against")
+	semantic := fs.Bool("semantic", false, "Compare semantic structure instead of text")
+	verbose := fs.Bool("v", false, "Verbose output")
+
+	fs.Usage = func() {
+		fmt.Println("Usage: wetwire-honeycomb diff [flags] [packages]")
+		fmt.Println()
+		fmt.Println("Compare generated output vs existing config.")
+		fmt.Println()
+		fmt.Println("Flags:")
+		fs.PrintDefaults()
+	}
+
+	if err := fs.Parse(args); err != nil {
+		return 2
+	}
+
+	if *output == "" {
+		fmt.Fprintln(os.Stderr, "Error: --output flag is required")
+		fs.Usage()
+		return 2
+	}
+
+	path := "."
+	if fs.NArg() > 0 {
+		path = fs.Arg(0)
+	}
+
+	// Build queries
+	b, err := builder.NewBuilder(path)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
+		return 2
+	}
+
+	result, err := b.Build()
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Build failed: %v\n", err)
+		return 2
+	}
+
+	if result.QueryCount() == 0 {
+		fmt.Fprintln(os.Stderr, "No queries found")
+		return 2
+	}
+
+	// Generate current output
+	queries := result.Queries()
+	var currentJSON []byte
+
+	if len(queries) == 1 {
+		q := discoveredToQuery(queries[0])
+		currentJSON, err = serialize.ToJSONPretty(q)
+	} else {
+		queryMap := make(map[string]json.RawMessage)
+		for _, dq := range queries {
+			q := discoveredToQuery(dq)
+			data, e := serialize.ToJSON(q)
+			if e != nil {
+				err = e
+				break
+			}
+			queryMap[dq.Name] = data
+		}
+		if err == nil {
+			currentJSON, err = json.MarshalIndent(queryMap, "", "  ")
+		}
+	}
+
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Serialization failed: %v\n", err)
+		return 2
+	}
+
+	// Read existing file
+	existingJSON, err := os.ReadFile(*output)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Error reading %s: %v\n", *output, err)
+		return 2
+	}
+
+	// Compare
+	if *semantic {
+		return semanticDiff(currentJSON, existingJSON, *verbose)
+	}
+	return textDiff(currentJSON, existingJSON, *output, *verbose)
+}
+
+func textDiff(current, existing []byte, filename string, verbose bool) int {
+	// Normalize line endings
+	current = bytes.ReplaceAll(current, []byte("\r\n"), []byte("\n"))
+	existing = bytes.ReplaceAll(existing, []byte("\r\n"), []byte("\n"))
+
+	if bytes.Equal(current, existing) {
+		if verbose {
+			fmt.Println("Files are identical")
+		}
+		return 0
+	}
+
+	// Show line-by-line diff
+	currentLines := strings.Split(string(current), "\n")
+	existingLines := strings.Split(string(existing), "\n")
+
+	fmt.Printf("--- %s (existing)\n", filename)
+	fmt.Println("+++ generated")
+
+	maxLen := len(currentLines)
+	if len(existingLines) > maxLen {
+		maxLen = len(existingLines)
+	}
+
+	for i := 0; i < maxLen; i++ {
+		var currLine, existLine string
+		if i < len(currentLines) {
+			currLine = currentLines[i]
+		}
+		if i < len(existingLines) {
+			existLine = existingLines[i]
+		}
+
+		if currLine != existLine {
+			if existLine != "" {
+				fmt.Printf("-%s\n", existLine)
+			}
+			if currLine != "" {
+				fmt.Printf("+%s\n", currLine)
+			}
+		}
+	}
+
+	return 1
+}
+
+func semanticDiff(current, existing []byte, verbose bool) int {
+	var currData, existData interface{}
+
+	if err := json.Unmarshal(current, &currData); err != nil {
+		fmt.Fprintf(os.Stderr, "Error parsing generated JSON: %v\n", err)
+		return 2
+	}
+
+	if err := json.Unmarshal(existing, &existData); err != nil {
+		fmt.Fprintf(os.Stderr, "Error parsing existing JSON: %v\n", err)
+		return 2
+	}
+
+	if reflect.DeepEqual(currData, existData) {
+		if verbose {
+			fmt.Println("Semantically identical")
+		}
+		return 0
+	}
+
+	// Show structural differences
+	diffs := compareJSON(currData, existData, "")
+	for _, d := range diffs {
+		fmt.Println(d)
+	}
+
+	return 1
+}
+
+func compareJSON(a, b interface{}, path string) []string {
+	var diffs []string
+
+	switch aTyped := a.(type) {
+	case map[string]interface{}:
+		bTyped, ok := b.(map[string]interface{})
+		if !ok {
+			return []string{fmt.Sprintf("Type mismatch at %s: map vs %T", path, b)}
+		}
+
+		// Check keys in a
+		for k, av := range aTyped {
+			newPath := path + "." + k
+			if path == "" {
+				newPath = k
+			}
+			if bv, ok := bTyped[k]; ok {
+				diffs = append(diffs, compareJSON(av, bv, newPath)...)
+			} else {
+				diffs = append(diffs, fmt.Sprintf("Key missing in existing: %s", newPath))
+			}
+		}
+
+		// Check keys in b not in a
+		for k := range bTyped {
+			newPath := path + "." + k
+			if path == "" {
+				newPath = k
+			}
+			if _, ok := aTyped[k]; !ok {
+				diffs = append(diffs, fmt.Sprintf("Extra key in existing: %s", newPath))
+			}
+		}
+
+	case []interface{}:
+		bTyped, ok := b.([]interface{})
+		if !ok {
+			return []string{fmt.Sprintf("Type mismatch at %s: array vs %T", path, b)}
+		}
+
+		if len(aTyped) != len(bTyped) {
+			diffs = append(diffs, fmt.Sprintf("Array length mismatch at %s: %d vs %d", path, len(aTyped), len(bTyped)))
+		}
+
+		minLen := len(aTyped)
+		if len(bTyped) < minLen {
+			minLen = len(bTyped)
+		}
+
+		for i := 0; i < minLen; i++ {
+			diffs = append(diffs, compareJSON(aTyped[i], bTyped[i], fmt.Sprintf("%s[%d]", path, i))...)
+		}
+
+	default:
+		if !reflect.DeepEqual(a, b) {
+			diffs = append(diffs, fmt.Sprintf("Value mismatch at %s: %v vs %v", path, a, b))
+		}
+	}
+
+	return diffs
+}
+
+func watchCmd(args []string) int {
+	fs := flag.NewFlagSet("watch", flag.ExitOnError)
+	output := fs.String("output", "", "Output file")
+	interval := fs.Int("interval", 2, "Polling interval in seconds")
+	verbose := fs.Bool("v", false, "Verbose output")
+
+	fs.Usage = func() {
+		fmt.Println("Usage: wetwire-honeycomb watch [flags] [packages]")
+		fmt.Println()
+		fmt.Println("Auto-rebuild on source file changes.")
+		fmt.Println()
+		fmt.Println("Flags:")
+		fs.PrintDefaults()
+	}
+
+	if err := fs.Parse(args); err != nil {
+		return 1
+	}
+
+	path := "."
+	if fs.NArg() > 0 {
+		path = fs.Arg(0)
+	}
+
+	fmt.Printf("Watching %s for changes (interval: %ds)\n", path, *interval)
+	fmt.Println("Press Ctrl+C to stop")
+	fmt.Println()
+
+	var lastModTime time.Time
+	var lastHash string
+
+	for {
+		// Get current modification state
+		currentModTime, currentHash, err := getDirectoryState(path)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "Error checking files: %v\n", err)
+			time.Sleep(time.Duration(*interval) * time.Second)
+			continue
+		}
+
+		// Check if anything changed
+		if !currentModTime.Equal(lastModTime) || currentHash != lastHash {
+			if lastModTime.IsZero() {
+				fmt.Printf("[%s] Initial build\n", time.Now().Format("15:04:05"))
+			} else {
+				fmt.Printf("[%s] Changes detected, rebuilding...\n", time.Now().Format("15:04:05"))
+			}
+
+			// Build
+			b, err := builder.NewBuilder(path)
+			if err != nil {
+				fmt.Fprintf(os.Stderr, "  Error: %v\n", err)
+			} else {
+				result, err := b.Build()
+				if err != nil {
+					fmt.Fprintf(os.Stderr, "  Build failed: %v\n", err)
+				} else {
+					if *verbose {
+						fmt.Printf("  Found %d queries\n", result.QueryCount())
+					}
+
+					if result.QueryCount() > 0 && *output != "" {
+						// Write output
+						queries := result.Queries()
+						var jsonData []byte
+
+						if len(queries) == 1 {
+							q := discoveredToQuery(queries[0])
+							jsonData, err = serialize.ToJSONPretty(q)
+						} else {
+							queryMap := make(map[string]json.RawMessage)
+							for _, dq := range queries {
+								q := discoveredToQuery(dq)
+								data, e := serialize.ToJSON(q)
+								if e != nil {
+									err = e
+									break
+								}
+								queryMap[dq.Name] = data
+							}
+							if err == nil {
+								jsonData, err = json.MarshalIndent(queryMap, "", "  ")
+							}
+						}
+
+						if err != nil {
+							fmt.Fprintf(os.Stderr, "  Serialization failed: %v\n", err)
+						} else {
+							if err := os.WriteFile(*output, jsonData, 0644); err != nil {
+								fmt.Fprintf(os.Stderr, "  Failed to write output: %v\n", err)
+							} else {
+								fmt.Printf("  Wrote %s (%d bytes)\n", *output, len(jsonData))
+							}
+						}
+					} else if result.QueryCount() > 0 {
+						fmt.Printf("  Build succeeded (%d queries)\n", result.QueryCount())
+					} else {
+						fmt.Println("  No queries found")
+					}
+				}
+			}
+
+			lastModTime = currentModTime
+			lastHash = currentHash
+		}
+
+		time.Sleep(time.Duration(*interval) * time.Second)
+	}
+}
+
+func getDirectoryState(dir string) (time.Time, string, error) {
+	var latestTime time.Time
+	var fileList []string
+
+	err := filepath.Walk(dir, func(path string, info os.FileInfo, err error) error {
+		if err != nil {
+			return err
+		}
+
+		// Skip hidden directories and non-Go files
+		if info.IsDir() {
+			if strings.HasPrefix(info.Name(), ".") {
+				return filepath.SkipDir
+			}
+			return nil
+		}
+
+		if !strings.HasSuffix(info.Name(), ".go") {
+			return nil
+		}
+
+		if info.ModTime().After(latestTime) {
+			latestTime = info.ModTime()
+		}
+
+		fileList = append(fileList, fmt.Sprintf("%s:%d", path, info.ModTime().UnixNano()))
+		return nil
+	})
+
+	if err != nil {
+		return latestTime, "", err
+	}
+
+	// Create a simple hash of file states
+	hash := strings.Join(fileList, "|")
+	return latestTime, hash, nil
 }
