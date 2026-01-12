@@ -1,0 +1,47 @@
+{
+  "time_range": 86400,
+  "breakdowns": ["service", "environment", "status_code"],
+  "calculations": [
+    {
+      "op": "COUNT"
+    },
+    {
+      "op": "P99",
+      "column": "duration_ms"
+    },
+    {
+      "op": "AVG",
+      "column": "response_size"
+    },
+    {
+      "op": "MAX",
+      "column": "memory_usage"
+    }
+  ],
+  "filters": [
+    {
+      "column": "duration_ms",
+      "op": ">",
+      "value": 1000
+    },
+    {
+      "column": "environment",
+      "op": "=",
+      "value": "production"
+    },
+    {
+      "column": "path",
+      "op": "contains",
+      "value": "/api/"
+    }
+  ],
+  "filter_combination": "AND",
+  "orders": [
+    {
+      "op": "COUNT",
+      "order": "descending"
+    }
+  ],
+  "limit": 100,
+  "granularity": 300
+}

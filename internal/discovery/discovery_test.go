@@ -271,6 +271,234 @@ func TestFilterByDataset(t *testing.T) {
 	}
 }
 
+func TestDiscoverQueriesInPackage(t *testing.T) {
+	// Test DiscoverQueriesInPackage wrapper function
+	testDir := filepath.Join(getRepoRoot(t), "testdata", "queries")
+
+	discovered, err := DiscoverQueriesInPackage(testDir)
+	if err != nil {
+		t.Fatalf("DiscoverQueriesInPackage failed: %v", err)
+	}
+
+	// Should find the same queries as DiscoverQueries
+	if len(discovered) < 2 {
+		t.Errorf("Expected at least 2 queries, got %d", len(discovered))
+	}
+}
+
+func TestFilterByPackage(t *testing.T) {
+	// Test filtering queries by package name
+	testDir := filepath.Join(getRepoRoot(t), "testdata", "queries")
+
+	discovered, err := DiscoverQueries(testDir)
+	if err != nil {
+		t.Fatalf("DiscoverQueries failed: %v", err)
+	}
+
+	// Filter by queries package
+	queriesPackage := FilterByPackage(discovered, "queries")
+	if len(queriesPackage) == 0 {
+		t.Error("Expected at least 1 query in 'queries' package")
+	}
+
+	// Verify all returned queries are from queries package
+	for _, q := range queriesPackage {
+		if q.Package != "queries" {
+			t.Errorf("Expected query from queries package, got %q", q.Package)
+		}
+	}
+
+	// Filter by non-existent package
+	nonExistent := FilterByPackage(discovered, "nonexistent")
+	if len(nonExistent) != 0 {
+		t.Errorf("Expected 0 queries in non-existent package, got %d", len(nonExistent))
+	}
+}
+
+func TestGroupByPackage(t *testing.T) {
+	// Test grouping queries by package
+	testDir := filepath.Join(getRepoRoot(t), "testdata", "queries")
+
+	discovered, err := DiscoverQueries(testDir)
+	if err != nil {
+		t.Fatalf("DiscoverQueries failed: %v", err)
+	}
+
+	grouped := GroupByPackage(discovered)
+
+	// Should have at least queries package
+	if len(grouped) == 0 {
+		t.Error("Expected at least 1 package")
+	}
+
+	// Verify queries package exists
+	if queriesPackage, ok := grouped["queries"]; ok {
+		if len(queriesPackage) == 0 {
+			t.Error("Expected at least 1 query in queries package")
+		}
+	} else {
+		t.Error("Expected queries package to be present")
+	}
+
+	// Verify all queries in each group have matching package
+	for pkg, queries := range grouped {
+		for _, q := range queries {
+			if q.Package != pkg {
+				t.Errorf("Query %s has package %q but is in group %q", q.Name, q.Package, pkg)
+			}
+		}
+	}
+}
+
+func TestDiscoverQueries_InvalidFile(t *testing.T) {
+	// Test discovering queries in a directory with a file (not directory)
+	tempDir := t.TempDir()
+
+	// Create a regular file
+	testFile := filepath.Join(tempDir, "test.txt")
+	if err := os.WriteFile(testFile, []byte("test"), 0644); err != nil {
+		t.Fatalf("Failed to create test file: %v", err)
+	}
+
+	_, err := DiscoverQueries(testFile)
+	if err == nil {
+		t.Error("Expected error for path that is not a directory, got nil")
+	}
+}
+
+func TestDiscoverQueries_MalformedGoFile(t *testing.T) {
+	// Test discovering queries in a directory with malformed Go file
+	tempDir := t.TempDir()
+
+	// Create a malformed Go file
+	malformedFile := filepath.Join(tempDir, "malformed.go")
+	if err := os.WriteFile(malformedFile, []byte("package test\n\nthis is not valid go syntax {{{"), 0644); err != nil {
+		t.Fatalf("Failed to create malformed file: %v", err)
+	}
+
+	// Should not fail on malformed files, just skip them
+	discovered, err := DiscoverQueries(tempDir)
+	if err != nil {
+		t.Fatalf("DiscoverQueries should not fail on malformed files: %v", err)
+	}
+
+	// Should return empty results since file is malformed
+	if len(discovered) != 0 {
+		t.Errorf("Expected 0 queries from malformed file, got %d", len(discovered))
+	}
+}
+
+func TestExtractQueriesFromValueSpec_Unexported(t *testing.T) {
+	// Test that unexported queries are skipped
+	tempDir := t.TempDir()
+
+	// Create a file with unexported query
+	testFile := filepath.Join(tempDir, "unexported.go")
+	fileContent := `package test
+
+import "github.com/lex00/wetwire-honeycomb-go/query"
+
+var unexportedQuery = query.Query{
+	Dataset: "test",
+	TimeRange: query.Hours(1),
+	Calculations: []query.Calculation{query.Count()},
+}
+`
+	if err := os.WriteFile(testFile, []byte(fileContent), 0644); err != nil {
+		t.Fatalf("Failed to create test file: %v", err)
+	}
+
+	discovered, err := DiscoverQueries(tempDir)
+	if err != nil {
+		t.Fatalf("DiscoverQueries failed: %v", err)
+	}
+
+	// Should not find unexported query
+	for _, q := range discovered {
+		if q.Name == "unexportedQuery" {
+			t.Error("Should not discover unexported queries")
+		}
+	}
+}
+
+func TestExtractQueriesFromFunction_Unexported(t *testing.T) {
+	// Test that unexported functions are skipped
+	tempDir := t.TempDir()
+
+	// Create a file with unexported function
+	testFile := filepath.Join(tempDir, "unexported_func.go")
+	fileContent := `package test
+
+import "github.com/lex00/wetwire-honeycomb-go/query"
+
+func unexportedFunc() query.Query {
+	return query.Query{
+		Dataset: "test",
+		TimeRange: query.Hours(1),
+		Calculations: []query.Calculation{query.Count()},
+	}
+}
+`
+	if err := os.WriteFile(testFile, []byte(fileContent), 0644); err != nil {
+		t.Fatalf("Failed to create test file: %v", err)
+	}
+
+	discovered, err := DiscoverQueries(tempDir)
+	if err != nil {
+		t.Fatalf("DiscoverQueries failed: %v", err)
+	}
+
+	// Should not find unexported function
+	for _, q := range discovered {
+		if q.Name == "unexportedFunc" {
+			t.Error("Should not discover queries from unexported functions")
+		}
+	}
+}
+
+func TestExtractQueryFromComposite_MissingFields(t *testing.T) {
+	// Test extracting query from composite with missing fields
+	tempDir := t.TempDir()
+
+	// Create a file with minimal query (only dataset)
+	testFile := filepath.Join(tempDir, "minimal.go")
+	fileContent := `package test
+
+import "github.com/lex00/wetwire-honeycomb-go/query"
+
+var MinimalQuery = query.Query{
+	Dataset: "test",
+}
+`
+	if err := os.WriteFile(testFile, []byte(fileContent), 0644); err != nil {
+		t.Fatalf("Failed to create test file: %v", err)
+	}
+
+	discovered, err := DiscoverQueries(tempDir)
+	if err != nil {
+		t.Fatalf("DiscoverQueries failed: %v", err)
+	}
+
+	// Should find the query even with missing fields
+	found := false
+	for _, q := range discovered {
+		if q.Name == "MinimalQuery" {
+			found = true
+			if q.Dataset != "test" {
+				t.Errorf("Expected dataset 'test', got %q", q.Dataset)
+			}
+			// Other fields should be empty/zero
+			if len(q.Calculations) != 0 {
+				t.Error("Expected no calculations")
+			}
+		}
+	}
+
+	if !found {
+		t.Error("Expected to find MinimalQuery")
+	}
+}
+
 // Helper functions
 
 func findQuery(queries []DiscoveredQuery, name string) *DiscoveredQuery {
