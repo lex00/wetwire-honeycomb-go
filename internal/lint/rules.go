@@ -29,6 +29,9 @@ func AllRules() []Rule {
 		WHC009TimeRangeExceeds7Days(),
 		WHC010ExcessiveFilterCount(),
 		WHC011CircularDependency(),
+		WHC012SecretInFilter(),
+		WHC013SensitiveColumnExposure(),
+		WHC014HardcodedCredentials(),
 	}
 }
 
@@ -406,6 +409,176 @@ func WHC011CircularDependency() Rule {
 						Line:     query.Line,
 						Query:    query.Name,
 					})
+				}
+			}
+
+			return results
+		},
+	}
+}
+
+// WHC012SecretInFilter detects potential secrets or tokens in filter values.
+// This rule helps prevent accidental exposure of sensitive credentials in queries.
+func WHC012SecretInFilter() Rule {
+	return Rule{
+		Code:     "WHC012",
+		Severity: "error",
+		Message:  "Potential secret detected in filter value",
+		Check: func(query discovery.DiscoveredQuery) []LintResult {
+			var results []LintResult
+
+			// Patterns that indicate secret/token values
+			secretPatterns := []string{
+				"sk-",      // OpenAI, Stripe keys
+				"sk_live_", // Stripe live keys
+				"sk_test_", // Stripe test keys
+				"api_key",
+				"apikey",
+				"api-key",
+				"bearer",
+				"token",
+				"secret",
+				"password",
+				"passwd",
+				"credential",
+				"private_key",
+				"private-key",
+				"access_key",
+				"access-key",
+				"auth_token",
+				"auth-token",
+			}
+
+			for _, filter := range query.Filters {
+				// Check the filter value if it's a string
+				valueStr, ok := filter.Value.(string)
+				if !ok {
+					continue
+				}
+
+				valueLower := strings.ToLower(valueStr)
+				for _, pattern := range secretPatterns {
+					if strings.Contains(valueLower, pattern) {
+						results = append(results, LintResult{
+							Rule:     "WHC012",
+							Severity: "error",
+							Message:  fmt.Sprintf("Potential secret detected in filter value for column '%s' (pattern: %s)", filter.Column, pattern),
+							File:     query.File,
+							Line:     query.Line,
+							Query:    query.Name,
+						})
+						break // Only report once per filter
+					}
+				}
+			}
+
+			return results
+		},
+	}
+}
+
+// WHC013SensitiveColumnExposure warns when querying columns that might contain PII.
+// This rule helps identify potential privacy concerns in query breakdowns.
+func WHC013SensitiveColumnExposure() Rule {
+	return Rule{
+		Code:     "WHC013",
+		Severity: "warning",
+		Message:  "Query may expose sensitive/PII column data",
+		Check: func(query discovery.DiscoveredQuery) []LintResult {
+			var results []LintResult
+
+			// Patterns that indicate PII or sensitive data columns
+			sensitivePatterns := []string{
+				"password",
+				"passwd",
+				"ssn",
+				"social_security",
+				"social-security",
+				"socialsecurity",
+				"credit_card",
+				"credit-card",
+				"creditcard",
+				"card_number",
+				"card-number",
+				"cardnumber",
+				"cvv",
+				"pin",
+				"secret",
+				"private_key",
+				"private-key",
+				"privatekey",
+				"auth_token",
+				"auth-token",
+				"authtoken",
+				"api_key",
+				"api-key",
+				"apikey",
+				"access_token",
+				"access-token",
+				"accesstoken",
+			}
+
+			// Check breakdown columns for sensitive data patterns
+			for _, breakdown := range query.Breakdowns {
+				breakdownLower := strings.ToLower(breakdown)
+				for _, pattern := range sensitivePatterns {
+					if strings.Contains(breakdownLower, pattern) {
+						results = append(results, LintResult{
+							Rule:     "WHC013",
+							Severity: "warning",
+							Message:  fmt.Sprintf("Breakdown column '%s' may expose sensitive/PII data (pattern: %s)", breakdown, pattern),
+							File:     query.File,
+							Line:     query.Line,
+							Query:    query.Name,
+						})
+						break // Only report once per column
+					}
+				}
+			}
+
+			return results
+		},
+	}
+}
+
+// WHC014HardcodedCredentials detects hardcoded credentials in dataset names.
+// This rule catches cases where credentials might be accidentally embedded in dataset identifiers.
+func WHC014HardcodedCredentials() Rule {
+	return Rule{
+		Code:     "WHC014",
+		Severity: "error",
+		Message:  "Hardcoded credentials detected in dataset name",
+		Check: func(query discovery.DiscoveredQuery) []LintResult {
+			var results []LintResult
+
+			// Patterns that indicate hardcoded credentials in dataset names
+			credentialPatterns := []string{
+				"password=",
+				"passwd=",
+				"key=",
+				"token=",
+				"secret=",
+				"apikey=",
+				"api_key=",
+				"api-key=",
+				"access_key=",
+				"access-key=",
+				"auth=",
+				"credential=",
+			}
+
+			datasetLower := strings.ToLower(query.Dataset)
+			for _, pattern := range credentialPatterns {
+				if strings.Contains(datasetLower, pattern) {
+					results = append(results, LintResult{
+						Rule:     "WHC014",
+						Severity: "error",
+						Message:  fmt.Sprintf("Hardcoded credentials detected in dataset name (pattern: %s)", pattern),
+						File:     query.File,
+						Line:     query.Line,
+						Query:    query.Name,
+					})
+					break // Only report once per dataset
 				}
 			}
 
