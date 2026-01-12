@@ -39,6 +39,15 @@ type DiscoveredQuery struct {
 	// Filters restrict the data being queried
 	Filters []Filter
 
+	// FilterCombination specifies how filters are combined ("AND" or "OR")
+	FilterCombination string
+
+	// Orders specify how results should be sorted
+	Orders []Order
+
+	// Granularity is the time bucket size in seconds
+	Granularity int
+
 	// Limit restricts the number of results
 	Limit int
 }
@@ -78,6 +87,18 @@ type Filter struct {
 
 	// Value is the value to compare against
 	Value interface{}
+}
+
+// Order represents a sort specification for query results.
+type Order struct {
+	// Column is the field to sort by (for breakdown columns)
+	Column string
+
+	// Op is the calculation operation to sort by (for calculation results)
+	Op string
+
+	// Order is the sort direction ("ascending" or "descending")
+	Order string
 }
 
 // DiscoverQueries discovers all Query definitions in the specified directory.
@@ -258,6 +279,15 @@ func extractQueryFromComposite(comp *ast.CompositeLit, fset *token.FileSet, file
 
 		case "Filters":
 			query.Filters = extractFilters(kv.Value)
+
+		case "FilterCombination":
+			query.FilterCombination = extractStringLiteral(kv.Value)
+
+		case "Orders":
+			query.Orders = extractOrders(kv.Value)
+
+		case "Granularity":
+			query.Granularity = extractIntLiteral(kv.Value)
 
 		case "Limit":
 			query.Limit = extractIntLiteral(kv.Value)

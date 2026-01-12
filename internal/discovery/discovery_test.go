@@ -271,6 +271,429 @@ func TestFilterByDataset(t *testing.T) {
 	}
 }
 
+func TestDiscoverQueriesInPackage(t *testing.T) {
+	// Test DiscoverQueriesInPackage wrapper function
+	testDir := filepath.Join(getRepoRoot(t), "testdata", "queries")
+
+	discovered, err := DiscoverQueriesInPackage(testDir)
+	if err != nil {
+		t.Fatalf("DiscoverQueriesInPackage failed: %v", err)
+	}
+
+	// Should find the same queries as DiscoverQueries
+	if len(discovered) < 2 {
+		t.Errorf("Expected at least 2 queries, got %d", len(discovered))
+	}
+}
+
+func TestFilterByPackage(t *testing.T) {
+	// Test filtering queries by package name
+	testDir := filepath.Join(getRepoRoot(t), "testdata", "queries")
+
+	discovered, err := DiscoverQueries(testDir)
+	if err != nil {
+		t.Fatalf("DiscoverQueries failed: %v", err)
+	}
+
+	// Filter by queries package
+	queriesPackage := FilterByPackage(discovered, "queries")
+	if len(queriesPackage) == 0 {
+		t.Error("Expected at least 1 query in 'queries' package")
+	}
+
+	// Verify all returned queries are from queries package
+	for _, q := range queriesPackage {
+		if q.Package != "queries" {
+			t.Errorf("Expected query from queries package, got %q", q.Package)
+		}
+	}
+
+	// Filter by non-existent package
+	nonExistent := FilterByPackage(discovered, "nonexistent")
+	if len(nonExistent) != 0 {
+		t.Errorf("Expected 0 queries in non-existent package, got %d", len(nonExistent))
+	}
+}
+
+func TestGroupByPackage(t *testing.T) {
+	// Test grouping queries by package
+	testDir := filepath.Join(getRepoRoot(t), "testdata", "queries")
+
+	discovered, err := DiscoverQueries(testDir)
+	if err != nil {
+		t.Fatalf("DiscoverQueries failed: %v", err)
+	}
+
+	grouped := GroupByPackage(discovered)
+
+	// Should have at least queries package
+	if len(grouped) == 0 {
+		t.Error("Expected at least 1 package")
+	}
+
+	// Verify queries package exists
+	if queriesPackage, ok := grouped["queries"]; ok {
+		if len(queriesPackage) == 0 {
+			t.Error("Expected at least 1 query in queries package")
+		}
+	} else {
+		t.Error("Expected queries package to be present")
+	}
+
+	// Verify all queries in each group have matching package
+	for pkg, queries := range grouped {
+		for _, q := range queries {
+			if q.Package != pkg {
+				t.Errorf("Query %s has package %q but is in group %q", q.Name, q.Package, pkg)
+			}
+		}
+	}
+}
+
+func TestDiscoverQueries_InvalidFile(t *testing.T) {
+	// Test discovering queries in a directory with a file (not directory)
+	tempDir := t.TempDir()
+
+	// Create a regular file
+	testFile := filepath.Join(tempDir, "test.txt")
+	if err := os.WriteFile(testFile, []byte("test"), 0644); err != nil {
+		t.Fatalf("Failed to create test file: %v", err)
+	}
+
+	_, err := DiscoverQueries(testFile)
+	if err == nil {
+		t.Error("Expected error for path that is not a directory, got nil")
+	}
+}
+
+func TestDiscoverQueries_MalformedGoFile(t *testing.T) {
+	// Test discovering queries in a directory with malformed Go file
+	tempDir := t.TempDir()
+
+	// Create a malformed Go file
+	malformedFile := filepath.Join(tempDir, "malformed.go")
+	if err := os.WriteFile(malformedFile, []byte("package test\n\nthis is not valid go syntax {{{"), 0644); err != nil {
+		t.Fatalf("Failed to create malformed file: %v", err)
+	}
+
+	// Should not fail on malformed files, just skip them
+	discovered, err := DiscoverQueries(tempDir)
+	if err != nil {
+		t.Fatalf("DiscoverQueries should not fail on malformed files: %v", err)
+	}
+
+	// Should return empty results since file is malformed
+	if len(discovered) != 0 {
+		t.Errorf("Expected 0 queries from malformed file, got %d", len(discovered))
+	}
+}
+
+func TestExtractQueriesFromValueSpec_Unexported(t *testing.T) {
+	// Test that unexported queries are skipped
+	tempDir := t.TempDir()
+
+	// Create a file with unexported query
+	testFile := filepath.Join(tempDir, "unexported.go")
+	fileContent := `package test
+
+import "github.com/lex00/wetwire-honeycomb-go/query"
+
+var unexportedQuery = query.Query{
+	Dataset: "test",
+	TimeRange: query.Hours(1),
+	Calculations: []query.Calculation{query.Count()},
+}
+`
+	if err := os.WriteFile(testFile, []byte(fileContent), 0644); err != nil {
+		t.Fatalf("Failed to create test file: %v", err)
+	}
+
+	discovered, err := DiscoverQueries(tempDir)
+	if err != nil {
+		t.Fatalf("DiscoverQueries failed: %v", err)
+	}
+
+	// Should not find unexported query
+	for _, q := range discovered {
+		if q.Name == "unexportedQuery" {
+			t.Error("Should not discover unexported queries")
+		}
+	}
+}
+
+func TestExtractQueriesFromFunction_Unexported(t *testing.T) {
+	// Test that unexported functions are skipped
+	tempDir := t.TempDir()
+
+	// Create a file with unexported function
+	testFile := filepath.Join(tempDir, "unexported_func.go")
+	fileContent := `package test
+
+import "github.com/lex00/wetwire-honeycomb-go/query"
+
+func unexportedFunc() query.Query {
+	return query.Query{
+		Dataset: "test",
+		TimeRange: query.Hours(1),
+		Calculations: []query.Calculation{query.Count()},
+	}
+}
+`
+	if err := os.WriteFile(testFile, []byte(fileContent), 0644); err != nil {
+		t.Fatalf("Failed to create test file: %v", err)
+	}
+
+	discovered, err := DiscoverQueries(tempDir)
+	if err != nil {
+		t.Fatalf("DiscoverQueries failed: %v", err)
+	}
+
+	// Should not find unexported function
+	for _, q := range discovered {
+		if q.Name == "unexportedFunc" {
+			t.Error("Should not discover queries from unexported functions")
+		}
+	}
+}
+
+func TestDiscoverQueries_OrdersAndGranularity(t *testing.T) {
+	// Test discovering queries with Orders and Granularity
+	testDir := filepath.Join(getRepoRoot(t), "testdata", "queries")
+
+	discovered, err := DiscoverQueries(testDir)
+	if err != nil {
+		t.Fatalf("DiscoverQueries failed: %v", err)
+	}
+
+	advQuery := findQuery(discovered, "AdvancedQuery")
+	if advQuery == nil {
+		t.Fatal("AdvancedQuery query not found")
+	}
+
+	// Verify FilterCombination
+	if advQuery.FilterCombination != "AND" {
+		t.Errorf("Expected FilterCombination 'AND', got %q", advQuery.FilterCombination)
+	}
+
+	// Verify Granularity
+	if advQuery.Granularity != 300 {
+		t.Errorf("Expected Granularity 300, got %d", advQuery.Granularity)
+	}
+
+	// Verify Orders
+	if len(advQuery.Orders) != 2 {
+		t.Errorf("Expected 2 orders, got %d", len(advQuery.Orders))
+	} else {
+		// First order by calculation
+		if advQuery.Orders[0].Op != "COUNT" {
+			t.Errorf("Expected first order Op 'COUNT', got %q", advQuery.Orders[0].Op)
+		}
+		if advQuery.Orders[0].Order != "descending" {
+			t.Errorf("Expected first order direction 'descending', got %q", advQuery.Orders[0].Order)
+		}
+
+		// Second order by column
+		if advQuery.Orders[1].Column != "service" {
+			t.Errorf("Expected second order Column 'service', got %q", advQuery.Orders[1].Column)
+		}
+		if advQuery.Orders[1].Order != "ascending" {
+			t.Errorf("Expected second order direction 'ascending', got %q", advQuery.Orders[1].Order)
+		}
+	}
+}
+
+func TestDiscoverQueries_TimeRangeFunctions(t *testing.T) {
+	// Test various time range functions
+	testDir := filepath.Join(getRepoRoot(t), "testdata", "queries")
+
+	discovered, err := DiscoverQueries(testDir)
+	if err != nil {
+		t.Fatalf("DiscoverQueries failed: %v", err)
+	}
+
+	// Test Last24Hours (86400 seconds)
+	advQuery := findQuery(discovered, "AdvancedQuery")
+	if advQuery != nil {
+		if advQuery.TimeRange.TimeRange != 86400 {
+			t.Errorf("Expected Last24Hours = 86400 seconds, got %d", advQuery.TimeRange.TimeRange)
+		}
+	}
+
+	// Test Minutes(30) = 1800 seconds
+	metricsQuery := findQuery(discovered, "MetricsQuery")
+	if metricsQuery != nil {
+		if metricsQuery.TimeRange.TimeRange != 1800 {
+			t.Errorf("Expected Minutes(30) = 1800 seconds, got %d", metricsQuery.TimeRange.TimeRange)
+		}
+	}
+
+	// Test Days(7) = 604800 seconds
+	errorTracking := findQuery(discovered, "ErrorTracking")
+	if errorTracking != nil {
+		if errorTracking.TimeRange.TimeRange != 604800 {
+			t.Errorf("Expected Days(7) = 604800 seconds, got %d", errorTracking.TimeRange.TimeRange)
+		}
+	}
+}
+
+func TestDiscoverQueries_CalculationNormalization(t *testing.T) {
+	// Test that calculation operations are normalized to uppercase
+	testDir := filepath.Join(getRepoRoot(t), "testdata", "queries")
+
+	discovered, err := DiscoverQueries(testDir)
+	if err != nil {
+		t.Fatalf("DiscoverQueries failed: %v", err)
+	}
+
+	advQuery := findQuery(discovered, "AdvancedQuery")
+	if advQuery == nil {
+		t.Fatal("AdvancedQuery query not found")
+	}
+
+	// Verify all calculation ops are uppercase
+	expectedOps := []string{"COUNT", "P99", "AVG", "MAX"}
+	for i, calc := range advQuery.Calculations {
+		if i < len(expectedOps) && calc.Op != expectedOps[i] {
+			t.Errorf("Expected calculation %d Op %q, got %q", i, expectedOps[i], calc.Op)
+		}
+	}
+
+	// Test MetricsQuery for more calculation types
+	metricsQuery := findQuery(discovered, "MetricsQuery")
+	if metricsQuery != nil {
+		expectedMetricOps := []string{"SUM", "AVG", "P95", "COUNT_DISTINCT"}
+		for i, calc := range metricsQuery.Calculations {
+			if i < len(expectedMetricOps) && calc.Op != expectedMetricOps[i] {
+				t.Errorf("Expected MetricsQuery calculation %d Op %q, got %q", i, expectedMetricOps[i], calc.Op)
+			}
+		}
+	}
+}
+
+func TestDiscoverQueries_FilterOperators(t *testing.T) {
+	// Test various filter operators are correctly extracted
+	testDir := filepath.Join(getRepoRoot(t), "testdata", "queries")
+
+	discovered, err := DiscoverQueries(testDir)
+	if err != nil {
+		t.Fatalf("DiscoverQueries failed: %v", err)
+	}
+
+	advQuery := findQuery(discovered, "AdvancedQuery")
+	if advQuery == nil {
+		t.Fatal("AdvancedQuery query not found")
+	}
+
+	// Verify filter operators
+	expectedFilters := []struct {
+		column string
+		op     string
+	}{
+		{"duration_ms", ">"},
+		{"environment", "="},
+		{"path", "contains"},
+	}
+
+	for i, expected := range expectedFilters {
+		if i >= len(advQuery.Filters) {
+			t.Errorf("Missing filter %d", i)
+			continue
+		}
+		if advQuery.Filters[i].Column != expected.column {
+			t.Errorf("Filter %d Column: expected %q, got %q", i, expected.column, advQuery.Filters[i].Column)
+		}
+		if advQuery.Filters[i].Op != expected.op {
+			t.Errorf("Filter %d Op: expected %q, got %q", i, expected.op, advQuery.Filters[i].Op)
+		}
+	}
+
+	// Test MetricsQuery for more filter types
+	metricsQuery := findQuery(discovered, "MetricsQuery")
+	if metricsQuery != nil {
+		// Check for LT and Exists filters
+		foundLT := false
+		foundExists := false
+		for _, f := range metricsQuery.Filters {
+			if f.Op == "<" {
+				foundLT = true
+			}
+			if f.Op == "exists" {
+				foundExists = true
+			}
+		}
+		if !foundLT {
+			t.Error("Expected LT filter in MetricsQuery")
+		}
+		if !foundExists {
+			t.Error("Expected Exists filter in MetricsQuery")
+		}
+	}
+
+	// Test ErrorTracking for NotEquals and DoesNotContain
+	errorTracking := findQuery(discovered, "ErrorTracking")
+	if errorTracking != nil {
+		foundNE := false
+		foundDNC := false
+		for _, f := range errorTracking.Filters {
+			if f.Op == "!=" {
+				foundNE = true
+			}
+			if f.Op == "does-not-contain" {
+				foundDNC = true
+			}
+		}
+		if !foundNE {
+			t.Error("Expected NotEquals filter in ErrorTracking")
+		}
+		if !foundDNC {
+			t.Error("Expected DoesNotContain filter in ErrorTracking")
+		}
+	}
+}
+
+func TestExtractQueryFromComposite_MissingFields(t *testing.T) {
+	// Test extracting query from composite with missing fields
+	tempDir := t.TempDir()
+
+	// Create a file with minimal query (only dataset)
+	testFile := filepath.Join(tempDir, "minimal.go")
+	fileContent := `package test
+
+import "github.com/lex00/wetwire-honeycomb-go/query"
+
+var MinimalQuery = query.Query{
+	Dataset: "test",
+}
+`
+	if err := os.WriteFile(testFile, []byte(fileContent), 0644); err != nil {
+		t.Fatalf("Failed to create test file: %v", err)
+	}
+
+	discovered, err := DiscoverQueries(tempDir)
+	if err != nil {
+		t.Fatalf("DiscoverQueries failed: %v", err)
+	}
+
+	// Should find the query even with missing fields
+	found := false
+	for _, q := range discovered {
+		if q.Name == "MinimalQuery" {
+			found = true
+			if q.Dataset != "test" {
+				t.Errorf("Expected dataset 'test', got %q", q.Dataset)
+			}
+			// Other fields should be empty/zero
+			if len(q.Calculations) != 0 {
+				t.Error("Expected no calculations")
+			}
+		}
+	}
+
+	if !found {
+		t.Error("Expected to find MinimalQuery")
+	}
+}
+
 // Helper functions
 
 func findQuery(queries []DiscoveredQuery, name string) *DiscoveredQuery {

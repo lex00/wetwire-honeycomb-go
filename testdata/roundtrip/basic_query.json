@@ -1,0 +1,20 @@
+{
+  "time_range": 7200,
+  "breakdowns": ["endpoint", "service"],
+  "calculations": [
+    {
+      "op": "P99",
+      "column": "duration_ms"
+    },
+    {
+      "op": "COUNT"
+    }
+  ],
+  "filters": [
+    {
+      "column": "duration_ms",
+      "op": ">",
+      "value": 500
+    }
+  ]
+}
