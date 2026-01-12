@@ -1,7 +1,9 @@
 package main
 
 import (
+	"bufio"
 	"bytes"
+	"context"
 	"encoding/json"
 	"flag"
 	"fmt"
@@ -11,6 +13,12 @@ import (
 	"strings"
 	"time"
 
+	"github.com/lex00/wetwire-core-go/agent/agents"
+	"github.com/lex00/wetwire-core-go/agent/orchestrator"
+	"github.com/lex00/wetwire-core-go/agent/personas"
+	"github.com/lex00/wetwire-core-go/providers"
+	"github.com/lex00/wetwire-core-go/providers/anthropic"
+	"github.com/lex00/wetwire-honeycomb-go/internal/agent"
 	"github.com/lex00/wetwire-honeycomb-go/internal/builder"
 	"github.com/lex00/wetwire-honeycomb-go/internal/discovery"
 	"github.com/lex00/wetwire-honeycomb-go/internal/lint"
@@ -45,6 +53,10 @@ func main() {
 		os.Exit(diffCmd(os.Args[2:]))
 	case "watch":
 		os.Exit(watchCmd(os.Args[2:]))
+	case "design":
+		os.Exit(designCmd(os.Args[2:]))
+	case "test":
+		os.Exit(testCmd(os.Args[2:]))
 	case "version":
 		fmt.Printf("wetwire-honeycomb %s\n", version)
 		os.Exit(0)
@@ -74,6 +86,8 @@ func printUsage() {
 	fmt.Println("  graph     Show query dependency graph")
 	fmt.Println("  diff      Compare generated output vs existing config")
 	fmt.Println("  watch     Auto-rebuild on source file changes")
+	fmt.Println("  design    AI-assisted query generation (requires API key)")
+	fmt.Println("  test      Persona-based testing with scoring")
 	fmt.Println("  version   Print version information")
 	fmt.Println("  help      Print this help message")
 	fmt.Println()
@@ -1150,4 +1164,467 @@ func getDirectoryState(dir string) (time.Time, string, error) {
 	// Create a simple hash of file states
 	hash := strings.Join(fileList, "|")
 	return latestTime, hash, nil
+}
+
+func designCmd(args []string) int {
+	fs := flag.NewFlagSet("design", flag.ExitOnError)
+	output := fs.String("o", ".", "Output directory for generated files")
+	provider := fs.String("provider", "anthropic", "AI provider: anthropic, openai, gemini")
+	model := fs.String("model", "claude-sonnet-4-20250514", "Model to use")
+	maxLintCycles := fs.Int("max-lint-cycles", 5, "Maximum lint/fix cycles")
+	stream := fs.Bool("stream", false, "Stream AI responses")
+
+	fs.Usage = func() {
+		fmt.Println("Usage: wetwire-honeycomb design [flags] <prompt>")
+		fmt.Println()
+		fmt.Println("AI-assisted query generation from natural language.")
+		fmt.Println()
+		fmt.Println("Examples:")
+		fmt.Println("  wetwire-honeycomb design \"show me P99 latency by endpoint for the last 2 hours\"")
+		fmt.Println("  wetwire-honeycomb design --provider openai \"find slow database queries\"")
+		fmt.Println("  wetwire-honeycomb design -o ./queries \"error rate by service\"")
+		fmt.Println()
+		fmt.Println("Flags:")
+		fs.PrintDefaults()
+	}
+
+	if err := fs.Parse(args); err != nil {
+		return 1
+	}
+
+	// Validate provider
+	if *provider != "anthropic" && *provider != "openai" && *provider != "gemini" {
+		fmt.Fprintf(os.Stderr, "Error: unsupported provider %q (supported: anthropic, openai, gemini)\n", *provider)
+		return 1
+	}
+
+	// Get prompt
+	var prompt string
+	if fs.NArg() > 0 {
+		prompt = strings.Join(fs.Args(), " ")
+	} else {
+		// Interactive mode - read from stdin
+		fmt.Println("Enter your query description (Ctrl+D to finish):")
+		scanner := bufio.NewScanner(os.Stdin)
+		var lines []string
+		for scanner.Scan() {
+			lines = append(lines, scanner.Text())
+		}
+		prompt = strings.Join(lines, "\n")
+	}
+
+	if strings.TrimSpace(prompt) == "" {
+		fmt.Fprintln(os.Stderr, "Error: prompt required")
+		fs.Usage()
+		return 1
+	}
+
+	// Check for API key
+	apiKey := os.Getenv("ANTHROPIC_API_KEY")
+	if *provider == "anthropic" && apiKey == "" {
+		fmt.Fprintln(os.Stderr, "Error: ANTHROPIC_API_KEY environment variable required")
+		return 1
+	}
+
+	// Create output directory if needed
+	if err := os.MkdirAll(*output, 0755); err != nil {
+		fmt.Fprintf(os.Stderr, "Error creating output directory: %v\n", err)
+		return 1
+	}
+
+	// Create provider
+	var prov providers.Provider
+	var err error
+	switch *provider {
+	case "anthropic":
+		prov, err = anthropic.New(anthropic.Config{APIKey: apiKey})
+	default:
+		fmt.Fprintf(os.Stderr, "Error: provider %q not yet implemented\n", *provider)
+		return 1
+	}
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Error creating provider: %v\n", err)
+		return 1
+	}
+
+	// Create runner agent with Honeycomb domain
+	config := agents.RunnerConfig{
+		Provider:      prov,
+		Domain:        agent.HoneycombDomain(),
+		WorkDir:       *output,
+		Model:         *model,
+		MaxLintCycles: *maxLintCycles,
+		Developer:     newConsoleDeveloper(),
+	}
+
+	if *stream {
+		config.StreamHandler = func(text string) {
+			fmt.Print(text)
+		}
+	}
+
+	runner, err := agents.NewRunnerAgent(config)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Error creating agent: %v\n", err)
+		return 1
+	}
+
+	// Run the agent
+	ctx := context.Background()
+	fmt.Printf("Designing Honeycomb queries for: %s\n\n", prompt)
+
+	if err := runner.Run(ctx, prompt); err != nil {
+		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
+		return 1
+	}
+
+	// Report summary
+	fmt.Println()
+	fmt.Println("Summary:")
+	fmt.Printf("  Generated files: %d\n", len(runner.GetGeneratedFiles()))
+	for _, f := range runner.GetGeneratedFiles() {
+		fmt.Printf("    - %s\n", f)
+	}
+	fmt.Printf("  Lint cycles: %d\n", runner.GetLintCycles())
+	fmt.Printf("  Lint passed: %t\n", runner.LintPassed())
+
+	if !runner.LintPassed() {
+		return 1
+	}
+	return 0
+}
+
+// consoleDeveloper implements orchestrator.Developer for interactive sessions
+type consoleDeveloper struct {
+	reader *bufio.Reader
+}
+
+func newConsoleDeveloper() orchestrator.Developer {
+	return &consoleDeveloper{
+		reader: bufio.NewReader(os.Stdin),
+	}
+}
+
+func (d *consoleDeveloper) Respond(_ context.Context, question string) (string, error) {
+	fmt.Printf("\n[Agent Question] %s\n> ", question)
+	answer, err := d.reader.ReadString('\n')
+	if err != nil {
+		return "", err
+	}
+	return strings.TrimSpace(answer), nil
+}
+
+func testCmd(args []string) int {
+	fs := flag.NewFlagSet("test", flag.ExitOnError)
+	format := fs.String("f", "text", "Output format: text, json")
+	persona := fs.String("persona", "intermediate", "Persona: beginner, intermediate, expert, terse, verbose")
+	allPersonas := fs.Bool("all-personas", false, "Run with all personas")
+	scenario := fs.String("scenario", "default", "Scenario name for tracking")
+	provider := fs.String("provider", "anthropic", "AI provider: anthropic, openai, gemini")
+	showScore := fs.Bool("score", false, "Show scoring breakdown")
+	listOpts := fs.Bool("list", false, "List available personas and scenarios")
+
+	fs.Usage = func() {
+		fmt.Println("Usage: wetwire-honeycomb test [flags] <prompt>")
+		fmt.Println()
+		fmt.Println("Persona-based query testing with scoring.")
+		fmt.Println()
+		fmt.Println("Examples:")
+		fmt.Println("  wetwire-honeycomb test --persona beginner \"Create a query to find slow requests\"")
+		fmt.Println("  wetwire-honeycomb test --persona expert \"Build an SLI dashboard query set\"")
+		fmt.Println("  wetwire-honeycomb test --all-personas \"Create error tracking queries\"")
+		fmt.Println("  wetwire-honeycomb test --list")
+		fmt.Println()
+		fmt.Println("Personas:")
+		fmt.Println("  beginner     - New to Honeycomb, needs guidance")
+		fmt.Println("  intermediate - Some experience, knows basics")
+		fmt.Println("  expert       - Deep observability knowledge")
+		fmt.Println("  terse        - Minimal words, expects inference")
+		fmt.Println("  verbose      - Over-explains, buries requirements")
+		fmt.Println()
+		fmt.Println("Scoring (0-15 points):")
+		fmt.Println("  Completeness       - Were all required queries generated?")
+		fmt.Println("  Lint Quality       - How many lint cycles needed?")
+		fmt.Println("  Code Quality       - Idiomatic patterns used?")
+		fmt.Println("  Output Validity    - Valid Query JSON produced?")
+		fmt.Println("  Question Efficiency - Appropriate clarifications?")
+		fmt.Println()
+		fmt.Println("Flags:")
+		fs.PrintDefaults()
+	}
+
+	if err := fs.Parse(args); err != nil {
+		return 1
+	}
+
+	if *listOpts {
+		fmt.Println("Available Personas:")
+		for _, p := range personas.All() {
+			fmt.Printf("  %-15s %s\n", p.Name, p.Description)
+		}
+		fmt.Println()
+		fmt.Println("Available Scenarios:")
+		fmt.Println("  default        - General query generation")
+		fmt.Println("  latency        - Latency and performance queries")
+		fmt.Println("  errors         - Error tracking and debugging")
+		fmt.Println("  traces         - Distributed tracing queries")
+		return 0
+	}
+
+	// Validate provider
+	if *provider != "anthropic" && *provider != "openai" && *provider != "gemini" {
+		fmt.Fprintf(os.Stderr, "Error: unsupported provider %q (supported: anthropic, openai, gemini)\n", *provider)
+		return 1
+	}
+
+	// Validate persona
+	if !*allPersonas {
+		if _, err := personas.Get(*persona); err != nil {
+			fmt.Fprintf(os.Stderr, "Error: invalid persona %q\n", *persona)
+			fmt.Fprintln(os.Stderr, "Available: beginner, intermediate, expert, terse, verbose")
+			return 1
+		}
+	}
+
+	// Get prompt
+	if fs.NArg() < 1 {
+		fmt.Fprintln(os.Stderr, "Error: prompt required")
+		fs.Usage()
+		return 1
+	}
+	prompt := strings.Join(fs.Args(), " ")
+
+	// Check for API key
+	apiKey := os.Getenv("ANTHROPIC_API_KEY")
+	if *provider == "anthropic" && apiKey == "" {
+		fmt.Fprintln(os.Stderr, "Error: ANTHROPIC_API_KEY environment variable required")
+		return 1
+	}
+
+	// Determine which personas to run
+	var personasToRun []personas.Persona
+	if *allPersonas {
+		personasToRun = personas.All()
+	} else {
+		p, _ := personas.Get(*persona)
+		personasToRun = []personas.Persona{p}
+	}
+
+	// Run tests for each persona
+	type TestResult struct {
+		Persona        string         `json:"persona"`
+		Scenario       string         `json:"scenario"`
+		GeneratedFiles []string       `json:"generated_files"`
+		LintCycles     int            `json:"lint_cycles"`
+		LintPassed     bool           `json:"lint_passed"`
+		Score          *PersonaScore  `json:"score,omitempty"`
+		Error          string         `json:"error,omitempty"`
+	}
+
+	var results []TestResult
+
+	for _, p := range personasToRun {
+		fmt.Printf("\n=== Testing with persona: %s ===\n", p.Name)
+		fmt.Printf("Trait: %s\n\n", p.Description)
+
+		// Create temp directory for this test
+		tempDir, err := os.MkdirTemp("", fmt.Sprintf("wetwire-honeycomb-test-%s-", p.Name))
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "Error creating temp dir: %v\n", err)
+			results = append(results, TestResult{
+				Persona:  p.Name,
+				Scenario: *scenario,
+				Error:    err.Error(),
+			})
+			continue
+		}
+		defer func() { _ = os.RemoveAll(tempDir) }()
+
+		// Create provider
+		var prov providers.Provider
+		switch *provider {
+		case "anthropic":
+			prov, err = anthropic.New(anthropic.Config{APIKey: apiKey})
+		default:
+			fmt.Fprintf(os.Stderr, "Error: provider %q not yet implemented\n", *provider)
+			results = append(results, TestResult{
+				Persona:  p.Name,
+				Scenario: *scenario,
+				Error:    fmt.Sprintf("provider %q not implemented", *provider),
+			})
+			continue
+		}
+		if err != nil {
+			results = append(results, TestResult{
+				Persona:  p.Name,
+				Scenario: *scenario,
+				Error:    err.Error(),
+			})
+			continue
+		}
+
+		// Modify prompt based on persona
+		personaPrompt := applyPersonaStyle(prompt, p)
+
+		// Create runner agent
+		config := agents.RunnerConfig{
+			Provider:      prov,
+			Domain:        agent.HoneycombDomain(),
+			WorkDir:       tempDir,
+			MaxLintCycles: 5,
+		}
+
+		runner, err := agents.NewRunnerAgent(config)
+		if err != nil {
+			results = append(results, TestResult{
+				Persona:  p.Name,
+				Scenario: *scenario,
+				Error:    err.Error(),
+			})
+			continue
+		}
+
+		// Run the agent
+		ctx := context.Background()
+		runErr := runner.Run(ctx, personaPrompt)
+
+		result := TestResult{
+			Persona:        p.Name,
+			Scenario:       *scenario,
+			GeneratedFiles: runner.GetGeneratedFiles(),
+			LintCycles:     runner.GetLintCycles(),
+			LintPassed:     runner.LintPassed(),
+		}
+
+		if runErr != nil {
+			result.Error = runErr.Error()
+		}
+
+		if *showScore {
+			result.Score = calculateScore(runner, runErr)
+		}
+
+		results = append(results, result)
+	}
+
+	// Output results
+	if *format == "json" {
+		data, _ := json.MarshalIndent(results, "", "  ")
+		fmt.Println(string(data))
+	} else {
+		fmt.Println("\n=== Test Results ===")
+		for _, r := range results {
+			status := "PASS"
+			if r.Error != "" || !r.LintPassed {
+				status = "FAIL"
+			}
+			fmt.Printf("\n[%s] Persona: %s\n", status, r.Persona)
+			fmt.Printf("  Scenario: %s\n", r.Scenario)
+			fmt.Printf("  Generated files: %d\n", len(r.GeneratedFiles))
+			fmt.Printf("  Lint cycles: %d\n", r.LintCycles)
+			fmt.Printf("  Lint passed: %t\n", r.LintPassed)
+			if r.Error != "" {
+				fmt.Printf("  Error: %s\n", r.Error)
+			}
+			if r.Score != nil {
+				fmt.Printf("  Score: %d/15\n", r.Score.Total)
+				fmt.Printf("    Completeness: %d/3\n", r.Score.Completeness)
+				fmt.Printf("    Lint Quality: %d/3\n", r.Score.LintQuality)
+				fmt.Printf("    Code Quality: %d/3\n", r.Score.CodeQuality)
+				fmt.Printf("    Output Validity: %d/3\n", r.Score.OutputValidity)
+				fmt.Printf("    Question Efficiency: %d/3\n", r.Score.QuestionEfficiency)
+			}
+		}
+
+		// Summary
+		passed := 0
+		for _, r := range results {
+			if r.Error == "" && r.LintPassed {
+				passed++
+			}
+		}
+		fmt.Printf("\nSummary: %d/%d passed\n", passed, len(results))
+	}
+
+	// Return non-zero if any test failed
+	for _, r := range results {
+		if r.Error != "" || !r.LintPassed {
+			return 1
+		}
+	}
+	return 0
+}
+
+// PersonaScore represents the scoring breakdown
+type PersonaScore struct {
+	Completeness       int `json:"completeness"`
+	LintQuality        int `json:"lint_quality"`
+	CodeQuality        int `json:"code_quality"`
+	OutputValidity     int `json:"output_validity"`
+	QuestionEfficiency int `json:"question_efficiency"`
+	Total              int `json:"total"`
+}
+
+func calculateScore(runner *agents.RunnerAgent, runErr error) *PersonaScore {
+	score := &PersonaScore{}
+
+	// Completeness (0-3): Were files generated?
+	files := runner.GetGeneratedFiles()
+	switch {
+	case len(files) >= 3:
+		score.Completeness = 3
+	case len(files) >= 2:
+		score.Completeness = 2
+	case len(files) >= 1:
+		score.Completeness = 1
+	}
+
+	// Lint Quality (0-3): How many cycles needed?
+	cycles := runner.GetLintCycles()
+	switch {
+	case runner.LintPassed() && cycles <= 1:
+		score.LintQuality = 3
+	case runner.LintPassed() && cycles <= 3:
+		score.LintQuality = 2
+	case runner.LintPassed():
+		score.LintQuality = 1
+	}
+
+	// Code Quality (0-3): No error and lint passed
+	if runErr == nil && runner.LintPassed() {
+		score.CodeQuality = 3
+	} else if runErr == nil {
+		score.CodeQuality = 1
+	}
+
+	// Output Validity (0-3): Template generated successfully
+	if runner.GetTemplate() != "" {
+		score.OutputValidity = 3
+	} else if runner.LintPassed() {
+		score.OutputValidity = 1
+	}
+
+	// Question Efficiency (0-3): Static analysis, no questions
+	score.QuestionEfficiency = 2 // Default for automated testing
+
+	score.Total = score.Completeness + score.LintQuality + score.CodeQuality +
+		score.OutputValidity + score.QuestionEfficiency
+
+	return score
+}
+
+func applyPersonaStyle(prompt string, p personas.Persona) string {
+	switch p.Name {
+	case "beginner":
+		return fmt.Sprintf("I'm new to Honeycomb queries. Can you help me with this? %s", prompt)
+	case "terse":
+		// Keep it minimal
+		return prompt
+	case "verbose":
+		return fmt.Sprintf("I need your help creating some Honeycomb queries. Let me explain in detail what I'm looking for. %s. Please make sure to include all the necessary fields and use best practices.", prompt)
+	case "expert":
+		return fmt.Sprintf("Create optimized Honeycomb queries with proper breakdowns, orders, and limits: %s", prompt)
+	default:
+		return prompt
+	}
 }
