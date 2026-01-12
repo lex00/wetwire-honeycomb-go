@@ -37,9 +37,9 @@ package queries
 import "github.com/lex00/wetwire-honeycomb-go/query"
 
 var SlowRequests = query.Query{
-    Dataset:   "production",
-    TimeRange: query.Hours(2),
-    Breakdowns: []string{"endpoint", "service"},
+    Dataset:      "production",
+    TimeRange:    query.Hours(2),
+    Breakdowns:   query.Breakdown("endpoint", "service"),
     Calculations: []query.Calculation{
         query.P99("duration_ms"),
         query.Count(),
