@@ -331,14 +331,25 @@ func extractFilter(expr ast.Expr) Filter {
 // mapFilterFuncToOp maps filter function names to operators.
 func mapFilterFuncToOp(funcName string) string {
 	mapping := map[string]string{
-		"GT":      ">",
-		"GTE":     ">=",
-		"LT":      "<",
-		"LTE":     "<=",
-		"Equals":  "=",
-		"NotEquals": "!=",
-		"Contains": "contains",
-		"Exists":   "exists",
+		"GT":                 ">",
+		"GTE":                ">=",
+		"LT":                 "<",
+		"LTE":                "<=",
+		"Equals":             "=",
+		"Eq":                 "=",
+		"NotEquals":          "!=",
+		"Ne":                 "!=",
+		"GreaterThan":        ">",
+		"GreaterThanOrEqual": ">=",
+		"LessThan":           "<",
+		"LessThanOrEqual":    "<=",
+		"Contains":           "contains",
+		"DoesNotContain":     "does-not-contain",
+		"Exists":             "exists",
+		"DoesNotExist":       "does-not-exist",
+		"StartsWith":         "starts-with",
+		"In":                 "in",
+		"NotIn":              "not-in",
 	}
 	if op, ok := mapping[funcName]; ok {
 		return op
