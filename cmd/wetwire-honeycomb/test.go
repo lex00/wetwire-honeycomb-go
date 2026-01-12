@@ -13,6 +13,7 @@ import (
 	"github.com/lex00/wetwire-core-go/agent/personas"
 	"github.com/lex00/wetwire-core-go/agent/results"
 	"github.com/lex00/wetwire-honeycomb-go/internal/agent"
+	"github.com/lex00/wetwire-honeycomb-go/internal/kiro"
 	"github.com/spf13/cobra"
 )
 
@@ -25,6 +26,7 @@ func newTestCmd() *cobra.Command {
 	var maxLintCycles int
 	var stream bool
 	var allPersonas bool
+	var provider string
 
 	cmd := &cobra.Command{
 		Use:   "test [prompt]",
@@ -53,9 +55,9 @@ Example:
 		RunE: func(cmd *cobra.Command, args []string) error {
 			prompt := args[0]
 			if allPersonas {
-				return runTestAllPersonas(prompt, outputDir, scenario, maxLintCycles, stream)
+				return runTestAllPersonas(prompt, outputDir, scenario, maxLintCycles, stream, provider)
 			}
-			return runTestAnthropic(prompt, outputDir, personaName, scenario, maxLintCycles, stream)
+			return runTestWithProvider(prompt, outputDir, personaName, scenario, maxLintCycles, stream, provider)
 		},
 	}
 
@@ -65,13 +67,22 @@ Example:
 	cmd.Flags().IntVarP(&maxLintCycles, "max-lint-cycles", "l", 5, "Maximum lint/fix cycles")
 	cmd.Flags().BoolVarP(&stream, "stream", "s", false, "Stream AI responses")
 	cmd.Flags().BoolVar(&allPersonas, "all-personas", false, "Run test with all personas")
+	cmd.Flags().StringVar(&provider, "provider", "anthropic", "AI provider: 'anthropic' or 'kiro'")
 
 	return cmd
 }
 
+// runTestWithProvider runs the test with the specified provider.
+func runTestWithProvider(prompt, outputDir, personaName, scenario string, maxLintCycles int, stream bool, provider string) error {
+	if provider == "kiro" {
+		return runTestKiro(prompt, outputDir, personaName)
+	}
+	return runTestAnthropic(prompt, outputDir, personaName, scenario, maxLintCycles, stream)
+}
+
 // runTestAllPersonas runs the test with all available personas sequentially.
 // It aggregates results and reports which personas passed or failed.
-func runTestAllPersonas(prompt, outputDir, scenario string, maxLintCycles int, stream bool) error {
+func runTestAllPersonas(prompt, outputDir, scenario string, maxLintCycles int, stream bool, provider string) error {
 	personaNames := personas.Names()
 	var failed []string
 
@@ -83,7 +94,7 @@ func runTestAllPersonas(prompt, outputDir, scenario string, maxLintCycles int, s
 
 		fmt.Printf("=== Running persona: %s ===\n", personaName)
 
-		err := runTestAnthropic(prompt, personaOutputDir, personaName, scenario, maxLintCycles, stream)
+		err := runTestWithProvider(prompt, personaOutputDir, personaName, scenario, maxLintCycles, stream, provider)
 		if err != nil {
 			fmt.Printf("Persona %s: FAILED - %v\n\n", personaName, err)
 			failed = append(failed, personaName)
@@ -184,6 +195,57 @@ func runTestAnthropic(prompt, outputDir, personaName, scenario string, maxLintCy
 	fmt.Printf("Lint cycles: %d\n", runner.GetLintCycles())
 	fmt.Printf("Lint passed: %v\n", runner.LintPassed())
 	fmt.Printf("Questions asked: %d\n", len(session.Questions))
+
+	return nil
+}
+
+// runTestKiro runs a test using Kiro CLI in non-interactive mode.
+func runTestKiro(prompt, outputDir, personaName string) error {
+	ctx := context.Background()
+
+	// Create test runner
+	runner := kiro.NewTestRunner(outputDir)
+	if err := runner.EnsureTestEnvironment(); err != nil {
+		return fmt.Errorf("prepare test environment: %w", err)
+	}
+
+	// Get persona
+	persona, err := personas.Get(personaName)
+	if err != nil {
+		return fmt.Errorf("invalid persona: %w", err)
+	}
+
+	fmt.Printf("Running test with persona '%s'\n", personaName)
+	fmt.Printf("Prompt: %s\n\n", prompt)
+
+	// Run test
+	result, err := runner.RunWithPersona(ctx, prompt, persona)
+	if err != nil {
+		return fmt.Errorf("test failed: %w", err)
+	}
+
+	// Print summary
+	fmt.Println("\n--- Test Summary ---")
+	fmt.Printf("Persona: %s\n", personaName)
+	fmt.Printf("Duration: %s\n", result.Duration)
+	fmt.Printf("Files created: %d\n", len(result.FilesCreated))
+	for _, f := range result.FilesCreated {
+		fmt.Printf("  - %s\n", f)
+	}
+	fmt.Printf("Lint passed: %v\n", result.LintPassed)
+	fmt.Printf("Build passed: %v\n", result.BuildPassed)
+	fmt.Printf("Overall success: %v\n", result.Success)
+
+	if len(result.ErrorMessages) > 0 {
+		fmt.Println("\nErrors:")
+		for _, e := range result.ErrorMessages {
+			fmt.Printf("  - %s\n", e)
+		}
+	}
+
+	if !result.Success {
+		return fmt.Errorf("test failed")
+	}
 
 	return nil
 }
