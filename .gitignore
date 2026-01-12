@@ -4,7 +4,7 @@
 *.dll
 *.so
 *.dylib
-wetwire-honeycomb
+/wetwire-honeycomb
 
 # Test binary
 *.test
