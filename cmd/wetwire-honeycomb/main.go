@@ -1115,7 +1115,3 @@ func getDirectoryState(dir string) (time.Time, string, error) {
 	hash := strings.Join(fileList, "|")
 	return latestTime, hash, nil
 }
-
-func getVersion() string {
-	return version
-}
