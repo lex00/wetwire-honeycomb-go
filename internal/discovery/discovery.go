@@ -50,6 +50,9 @@ type DiscoveredQuery struct {
 
 	// Limit restricts the number of results
 	Limit int
+
+	// Style contains metadata for style linting
+	Style StyleMetadata
 }
 
 // TimeRange represents a time window for a query.
@@ -99,6 +102,23 @@ type Order struct {
 
 	// Order is the sort direction ("ascending" or "descending")
 	Order string
+}
+
+// StyleMetadata contains metadata for style linting.
+type StyleMetadata struct {
+	// InlineCalculationCount is the number of calculations defined inline
+	// (as composite literals rather than named variables)
+	InlineCalculationCount int
+
+	// InlineFilterCount is the number of filters defined inline
+	// (as composite literals rather than named variables)
+	InlineFilterCount int
+
+	// HasRawMapLiteral indicates if raw map literals are used instead of typed builders
+	HasRawMapLiteral bool
+
+	// MaxNestingDepth is the maximum nesting depth of the query configuration
+	MaxNestingDepth int
 }
 
 // DiscoverQueries discovers all Query definitions in the specified directory.
@@ -293,6 +313,9 @@ func extractQueryFromComposite(comp *ast.CompositeLit, fset *token.FileSet, file
 			query.Limit = extractIntLiteral(kv.Value)
 		}
 	}
+
+	// Extract style metadata for linting
+	query.Style = extractStyleMetadata(comp)
 
 	return query
 }

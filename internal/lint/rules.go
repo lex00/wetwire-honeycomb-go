@@ -32,6 +32,10 @@ func AllRules() []Rule {
 		WHC012SecretInFilter(),
 		WHC013SensitiveColumnExposure(),
 		WHC014HardcodedCredentials(),
+		WHC020InlineCalculationDefinition(),
+		WHC021InlineFilterDefinition(),
+		WHC022RawMapLiteral(),
+		WHC023DeeplyNestedConfiguration(),
 	}
 }
 
@@ -583,6 +587,115 @@ func WHC014HardcodedCredentials() Rule {
 			}
 
 			return results
+		},
+	}
+}
+
+// WHC020InlineCalculationDefinition detects inline calculation definitions that should be
+// extracted to named variables for better readability and reusability.
+func WHC020InlineCalculationDefinition() Rule {
+	return Rule{
+		Code:     "WHC020",
+		Severity: "warning",
+		Message:  "Extract inline Calculation definitions to named variables",
+		Check: func(query discovery.DiscoveredQuery) []LintResult {
+			// Threshold: more than 3 inline calculations suggest extraction
+			const threshold = 3
+
+			if query.Style.InlineCalculationCount > threshold {
+				return []LintResult{
+					{
+						Rule:     "WHC020",
+						Severity: "warning",
+						Message:  fmt.Sprintf("Query has %d inline Calculation definitions - consider extracting to named variables for reusability", query.Style.InlineCalculationCount),
+						File:     query.File,
+						Line:     query.Line,
+						Query:    query.Name,
+					},
+				}
+			}
+			return nil
+		},
+	}
+}
+
+// WHC021InlineFilterDefinition detects inline filter definitions that should be
+// extracted to named variables for better readability and reusability.
+func WHC021InlineFilterDefinition() Rule {
+	return Rule{
+		Code:     "WHC021",
+		Severity: "warning",
+		Message:  "Extract inline Filter definitions to named variables",
+		Check: func(query discovery.DiscoveredQuery) []LintResult {
+			// Threshold: more than 3 inline filters suggest extraction
+			const threshold = 3
+
+			if query.Style.InlineFilterCount > threshold {
+				return []LintResult{
+					{
+						Rule:     "WHC021",
+						Severity: "warning",
+						Message:  fmt.Sprintf("Query has %d inline Filter definitions - consider extracting to named variables for reusability", query.Style.InlineFilterCount),
+						File:     query.File,
+						Line:     query.Line,
+						Query:    query.Name,
+					},
+				}
+			}
+			return nil
+		},
+	}
+}
+
+// WHC022RawMapLiteral detects raw map literals used instead of typed query builders.
+// Using typed builders provides better type safety and IDE support.
+func WHC022RawMapLiteral() Rule {
+	return Rule{
+		Code:     "WHC022",
+		Severity: "warning",
+		Message:  "Use typed query builders instead of raw map literals",
+		Check: func(query discovery.DiscoveredQuery) []LintResult {
+			if query.Style.HasRawMapLiteral {
+				return []LintResult{
+					{
+						Rule:     "WHC022",
+						Severity: "warning",
+						Message:  "Query contains raw map literals - use typed query builders for better type safety",
+						File:     query.File,
+						Line:     query.Line,
+						Query:    query.Name,
+					},
+				}
+			}
+			return nil
+		},
+	}
+}
+
+// WHC023DeeplyNestedConfiguration detects deeply nested query configurations
+// that should be flattened for better readability.
+func WHC023DeeplyNestedConfiguration() Rule {
+	return Rule{
+		Code:     "WHC023",
+		Severity: "warning",
+		Message:  "Prevent deeply nested query configurations",
+		Check: func(query discovery.DiscoveredQuery) []LintResult {
+			// Threshold: nesting deeper than 4 levels is hard to read
+			const maxDepth = 4
+
+			if query.Style.MaxNestingDepth > maxDepth {
+				return []LintResult{
+					{
+						Rule:     "WHC023",
+						Severity: "warning",
+						Message:  fmt.Sprintf("Query has nesting depth of %d - consider flattening configuration (max recommended: %d)", query.Style.MaxNestingDepth, maxDepth),
+						File:     query.File,
+						Line:     query.Line,
+						Query:    query.Name,
+					},
+				}
+			}
+			return nil
 		},
 	}
 }

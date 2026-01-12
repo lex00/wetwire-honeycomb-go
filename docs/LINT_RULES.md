@@ -46,6 +46,10 @@ Rules follow the format `WHC<NNN>` where:
 | [WHC012](#whc012-secret-in-filter) | Secret in filter | error |
 | [WHC013](#whc013-sensitive-column-exposure) | Sensitive column exposure | warning |
 | [WHC014](#whc014-hardcoded-credentials) | Hardcoded credentials | error |
+| [WHC020](#whc020-inline-calculation-definition) | Inline calculation definition | warning |
+| [WHC021](#whc021-inline-filter-definition) | Inline filter definition | warning |
+| [WHC022](#whc022-raw-map-literal) | Raw map literal | warning |
+| [WHC023](#whc023-deeply-nested-configuration) | Deeply nested configuration | warning |
 
 ---
 
@@ -722,6 +726,258 @@ var MyQuery = query.Query{
     Calculations: []query.Calculation{
         query.Count(),
     },
+}
+```
+
+---
+
+### WHC020: Inline calculation definition
+
+**Severity:** warning
+
+**Description:**
+
+Detects inline Calculation definitions that should be extracted to named variables for better readability and reusability.
+
+**Why:**
+
+- Named variables improve code readability
+- Calculations can be reused across multiple queries
+- Makes testing easier with standalone calculation definitions
+- Follows Go best practices for configuration
+
+**Threshold:** More than 3 inline calculation definitions
+
+**Bad:**
+
+```go
+var MyQuery = query.Query{
+    Dataset:   "production",
+    TimeRange: query.Hours(1),
+    Calculations: []query.Calculation{
+        {Op: "COUNT"},
+        {Op: "P50", Column: "duration_ms"},
+        {Op: "P95", Column: "duration_ms"},
+        {Op: "P99", Column: "duration_ms"},
+        {Op: "AVG", Column: "response_size"},
+    },
+}
+```
+
+**Good:**
+
+```go
+// Named calculations for reusability
+var (
+    CountCalc       = query.Count()
+    P50Latency      = query.P50("duration_ms")
+    P95Latency      = query.P95("duration_ms")
+    P99Latency      = query.P99("duration_ms")
+    AvgResponseSize = query.Avg("response_size")
+)
+
+var MyQuery = query.Query{
+    Dataset:   "production",
+    TimeRange: query.Hours(1),
+    Calculations: []query.Calculation{
+        CountCalc,
+        P50Latency,
+        P95Latency,
+        P99Latency,
+        AvgResponseSize,
+    },
+}
+```
+
+---
+
+### WHC021: Inline filter definition
+
+**Severity:** warning
+
+**Description:**
+
+Detects inline Filter definitions that should be extracted to named variables for better readability and reusability.
+
+**Why:**
+
+- Named filters can be reused across multiple queries
+- Improves code organization and maintainability
+- Makes complex filter logic easier to test
+- Follows Go best practices for configuration
+
+**Threshold:** More than 3 inline filter definitions
+
+**Bad:**
+
+```go
+var MyQuery = query.Query{
+    Dataset:   "production",
+    TimeRange: query.Hours(1),
+    Calculations: []query.Calculation{
+        query.Count(),
+    },
+    Filters: []query.Filter{
+        {Column: "status", Op: "=", Value: "error"},
+        {Column: "env", Op: "=", Value: "prod"},
+        {Column: "service", Op: "=", Value: "api"},
+        {Column: "duration_ms", Op: ">", Value: 1000},
+    },
+}
+```
+
+**Good:**
+
+```go
+// Named filters for reusability
+var (
+    ErrorFilter      = query.Equals("status", "error")
+    ProductionFilter = query.Equals("env", "prod")
+    APIServiceFilter = query.Equals("service", "api")
+    SlowRequestFilter = query.GT("duration_ms", 1000)
+)
+
+var MyQuery = query.Query{
+    Dataset:   "production",
+    TimeRange: query.Hours(1),
+    Calculations: []query.Calculation{
+        query.Count(),
+    },
+    Filters: []query.Filter{
+        ErrorFilter,
+        ProductionFilter,
+        APIServiceFilter,
+        SlowRequestFilter,
+    },
+}
+```
+
+---
+
+### WHC022: Raw map literal
+
+**Severity:** warning
+
+**Description:**
+
+Detects raw map literals used instead of typed query builders. Using typed builders provides better type safety and IDE support.
+
+**Why:**
+
+- Typed builders provide compile-time type checking
+- IDE autocomplete works with typed structs
+- Reduces runtime errors from typos in field names
+- Follows Go best practices for type safety
+
+**Bad:**
+
+```go
+var MyQuery = query.Query{
+    Dataset:   "production",
+    TimeRange: query.Hours(1),
+    Calculations: []query.Calculation{
+        query.Count(),
+    },
+    // Raw map literal - no type safety
+    Metadata: map[string]interface{}{
+        "owner": "team-a",
+        "environment": "production",
+    },
+}
+```
+
+**Good:**
+
+```go
+var MyQuery = query.Query{
+    Dataset:   "production",
+    TimeRange: query.Hours(1),
+    Calculations: []query.Calculation{
+        query.Count(),
+    },
+    // Use typed struct instead of map
+    Metadata: query.Metadata{
+        Owner:       "team-a",
+        Environment: "production",
+    },
+}
+```
+
+---
+
+### WHC023: Deeply nested configuration
+
+**Severity:** warning
+
+**Description:**
+
+Detects deeply nested query configurations that should be flattened for better readability.
+
+**Why:**
+
+- Deep nesting makes code harder to read and maintain
+- Increases cognitive load when reviewing code
+- Makes debugging more difficult
+- Often indicates code that could be refactored
+
+**Threshold:** Nesting depth greater than 4 levels
+
+**Bad:**
+
+```go
+var MyQuery = query.Query{
+    Dataset: "production",
+    TimeRange: query.Hours(1),
+    Calculations: []query.Calculation{
+        query.Calculation{
+            Op: "HEATMAP",
+            Column: "duration_ms",
+            Config: query.CalculationConfig{
+                Buckets: query.BucketConfig{
+                    Min: 0,
+                    Max: 10000,
+                    Count: 50,
+                    Distribution: query.Distribution{
+                        Type: "logarithmic",
+                        Base: 2,
+                    },
+                },
+            },
+        },
+    },
+}
+```
+
+**Good:**
+
+```go
+// Extract nested configurations to named variables
+var logDistribution = query.Distribution{
+    Type: "logarithmic",
+    Base: 2,
+}
+
+var bucketConfig = query.BucketConfig{
+    Min:          0,
+    Max:          10000,
+    Count:        50,
+    Distribution: logDistribution,
+}
+
+var heatmapConfig = query.CalculationConfig{
+    Buckets: bucketConfig,
+}
+
+var LatencyHeatmap = query.Calculation{
+    Op:     "HEATMAP",
+    Column: "duration_ms",
+    Config: heatmapConfig,
+}
+
+var MyQuery = query.Query{
+    Dataset:      "production",
+    TimeRange:    query.Hours(1),
+    Calculations: []query.Calculation{LatencyHeatmap},
 }
 ```
 
