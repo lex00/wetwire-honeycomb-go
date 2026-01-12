@@ -42,6 +42,10 @@ Rules follow the format `WHC<NNN>` where:
 | [WHC008](#whc008-missing-limit-with-breakdowns) | Missing limit with breakdowns | warning |
 | [WHC009](#whc009-time-range-exceeds-7-days) | Time range exceeds 7 days | error |
 | [WHC010](#whc010-excessive-filter-count) | Excessive filter count | warning |
+| [WHC011](#whc011-circular-dependency) | Circular dependency | error |
+| [WHC012](#whc012-secret-in-filter) | Secret in filter | error |
+| [WHC013](#whc013-sensitive-column-exposure) | Sensitive column exposure | warning |
+| [WHC014](#whc014-hardcoded-credentials) | Hardcoded credentials | error |
 
 ---
 
@@ -517,6 +521,212 @@ Consider restructuring queries with many filters:
 
 ---
 
+### WHC011: Circular dependency
+
+**Severity:** error
+
+**Description:**
+
+Detects self-referential patterns where a query name appears in its own filter or calculation columns.
+
+**Why:**
+
+- Self-referential queries indicate a logical error
+- May cause unexpected behavior or confusing results
+- Often indicates copy-paste errors from other queries
+
+**Detection:**
+
+Checks if the query variable name (case-insensitive) appears in:
+- Filter column names
+- Calculation column names
+
+**Bad:**
+
+```go
+var LatencyMetrics = query.Query{
+    Dataset:   "production",
+    TimeRange: query.Hours(1),
+    Calculations: []query.Calculation{
+        query.P99("LatencyMetrics_value"), // Self-reference to query name
+    },
+}
+```
+
+**Good:**
+
+```go
+var LatencyMetrics = query.Query{
+    Dataset:   "production",
+    TimeRange: query.Hours(1),
+    Calculations: []query.Calculation{
+        query.P99("duration_ms"), // Actual column name
+    },
+}
+```
+
+---
+
+### WHC012: Secret in filter
+
+**Severity:** error
+
+**Description:**
+
+Detects potential secrets, tokens, or credentials in filter values that should not be hardcoded.
+
+**Why:**
+
+- Secrets in source code can be exposed in version control
+- Hardcoded credentials are a security vulnerability
+- API keys and tokens should be managed separately
+
+**Detected Patterns:**
+
+| Pattern | Example |
+|---------|---------|
+| OpenAI keys | `sk-...`, `sk_live_...`, `sk_test_...` |
+| Generic tokens | Values containing `token`, `bearer`, `secret` |
+| API keys | Values containing `api_key`, `apikey`, `api-key` |
+| Passwords | Values containing `password`, `passwd` |
+| Stripe keys | `sk_live_...`, `sk_test_...` |
+| Access credentials | Values containing `access_key`, `auth_token`, `credential` |
+
+**Bad:**
+
+```go
+var MyQuery = query.Query{
+    Dataset:   "production",
+    TimeRange: query.Hours(1),
+    Calculations: []query.Calculation{
+        query.Count(),
+    },
+    Filters: []query.Filter{
+        query.Equals("api.key", "sk-1234567890abcdef"), // Secret in filter!
+    },
+}
+```
+
+**Good:**
+
+```go
+// Use environment variables or configuration for secrets
+var MyQuery = query.Query{
+    Dataset:   "production",
+    TimeRange: query.Hours(1),
+    Calculations: []query.Calculation{
+        query.Count(),
+    },
+    Filters: []query.Filter{
+        query.Exists("api.key"), // Check existence without exposing value
+    },
+}
+```
+
+---
+
+### WHC013: Sensitive column exposure
+
+**Severity:** warning
+
+**Description:**
+
+Warns when breakdown columns might expose personally identifiable information (PII) or sensitive data.
+
+**Why:**
+
+- Breaking down by sensitive fields exposes individual values
+- PII in query results may violate privacy regulations
+- Sensitive data should be aggregated, not grouped
+
+**Detected Column Patterns:**
+
+| Category | Patterns |
+|----------|----------|
+| Authentication | `password`, `passwd`, `secret`, `auth_token`, `api_key`, `access_token`, `private_key` |
+| Financial | `credit_card`, `card_number`, `cvv`, `pin` |
+| Personal | `ssn`, `social_security` |
+
+**Bad:**
+
+```go
+var MyQuery = query.Query{
+    Dataset:   "production",
+    TimeRange: query.Hours(1),
+    Breakdowns: []string{"user.password", "credit_card_number"}, // Sensitive!
+    Calculations: []query.Calculation{
+        query.Count(),
+    },
+}
+```
+
+**Good:**
+
+```go
+var MyQuery = query.Query{
+    Dataset:   "production",
+    TimeRange: query.Hours(1),
+    Breakdowns: []string{"user.id", "transaction_type"}, // Non-sensitive
+    Calculations: []query.Calculation{
+        query.Count(),
+    },
+}
+```
+
+---
+
+### WHC014: Hardcoded credentials
+
+**Severity:** error
+
+**Description:**
+
+Detects hardcoded credentials or authentication parameters in dataset names.
+
+**Why:**
+
+- Dataset names may appear in logs and error messages
+- Credentials in dataset names are easily exposed
+- Indicates misconfiguration of data sources
+
+**Detected Patterns:**
+
+Patterns in dataset names like:
+- `password=...`
+- `key=...`
+- `token=...`
+- `secret=...`
+- `apikey=...`, `api_key=...`, `api-key=...`
+- `access_key=...`, `access-key=...`
+- `auth=...`
+- `credential=...`
+
+**Bad:**
+
+```go
+var MyQuery = query.Query{
+    Dataset:   "production?password=secret123", // Credential in dataset!
+    TimeRange: query.Hours(1),
+    Calculations: []query.Calculation{
+        query.Count(),
+    },
+}
+```
+
+**Good:**
+
+```go
+var MyQuery = query.Query{
+    Dataset:   "production", // Clean dataset name
+    TimeRange: query.Hours(1),
+    Calculations: []query.Calculation{
+        query.Count(),
+    },
+}
+```
+
+---
+
 ## Disabling Rules
 
 ### Command Line
@@ -530,21 +740,6 @@ wetwire-honeycomb lint --rules WHC001,WHC002 ./queries/...
 ### Inline Comments
 
 Rules cannot currently be disabled inline. This feature is planned for a future release.
-
----
-
-## Future Rules
-
-Planned rules for future releases:
-
-| Rule | Description | Priority |
-|------|-------------|----------|
-| WHC011 | Circular dependency detection | High |
-| WHC012 | Secret in filter value | High |
-| WHC013 | Sensitive column exposure | Medium |
-| WHC014 | Hardcoded credentials | High |
-
-See issues [#31](https://github.com/lex00/wetwire-honeycomb-go/issues/31), [#32](https://github.com/lex00/wetwire-honeycomb-go/issues/32) for planned implementations.
 
 ---
 
