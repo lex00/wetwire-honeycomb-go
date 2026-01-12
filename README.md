@@ -1,5 +1,10 @@
 # wetwire-honeycomb-go
 
+[![CI](https://github.com/lex00/wetwire-honeycomb-go/actions/workflows/ci.yml/badge.svg)](https://github.com/lex00/wetwire-honeycomb-go/actions/workflows/ci.yml)
+[![Go Reference](https://pkg.go.dev/badge/github.com/lex00/wetwire-honeycomb-go.svg)](https://pkg.go.dev/github.com/lex00/wetwire-honeycomb-go)
+[![Go Report Card](https://goreportcard.com/badge/github.com/lex00/wetwire-honeycomb-go)](https://goreportcard.com/report/github.com/lex00/wetwire-honeycomb-go)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+
 Honeycomb query synthesis for Go - type-safe declarations that compile to Honeycomb Query JSON.
 
 ## Overview
@@ -18,14 +23,18 @@ Go Structs → wetwire-honeycomb build → Query JSON → Honeycomb API
 go install github.com/lex00/wetwire-honeycomb-go/cmd/wetwire-honeycomb@latest
 ```
 
-## Quick Example
+Or add as a dependency:
+
+```bash
+go get github.com/lex00/wetwire-honeycomb-go
+```
+
+## Quick example
 
 ```go
-package main
+package queries
 
-import (
-    "github.com/lex00/wetwire-honeycomb-go/query"
-)
+import "github.com/lex00/wetwire-honeycomb-go/query"
 
 var SlowRequests = query.Query{
     Dataset:   "production",
@@ -38,17 +47,39 @@ var SlowRequests = query.Query{
     Filters: []query.Filter{
         query.GT("duration_ms", 500),
     },
+    Limit: 100,
 }
+```
+
+Build to JSON:
+
+```bash
+wetwire-honeycomb build ./queries -o output.json
 ```
 
 ## Commands
 
-```bash
-wetwire-honeycomb build ./queries/...  # Synthesize to Query JSON
-wetwire-honeycomb lint ./queries/...   # Check for issues
-wetwire-honeycomb list                 # List all queries
-```
+| Command | Description |
+|---------|-------------|
+| `build` | Synthesize queries to Honeycomb Query JSON |
+| `lint` | Check for issues and validate queries |
+| `import` | Convert existing JSON to Go code |
+| `validate` | Validate query structure |
+| `list` | List all discovered queries |
+| `init` | Scaffold a new project |
+| `graph` | Visualize query dependencies |
 
-## Status
+## Documentation
 
-🚧 Under development - see [ROADMAP](https://github.com/lex00/wetwire-honeycomb-go/issues/18)
+- [Quick Start](docs/QUICK_START.md) - Get started in 5 minutes
+- [CLI Reference](docs/CLI.md) - Complete command documentation
+- [Lint Rules](docs/LINT_RULES.md) - All validation rules
+- [FAQ](docs/FAQ.md) - Common questions
+
+## Part of wetwire
+
+This package follows the [wetwire specification](https://github.com/lex00/wetwire) for declarative infrastructure-as-code.
+
+## License
+
+MIT License - see [LICENSE](LICENSE)
