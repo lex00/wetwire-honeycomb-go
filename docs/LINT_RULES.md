@@ -7,9 +7,9 @@ This document describes all lint rules for wetwire-honeycomb-go.
 ## Overview
 
 wetwire-honeycomb linter checks query declarations for:
-- Best practices alignment with Honeycomb patterns
-- Type safety enforcement
-- Code clarity and maintainability
+- Required fields (dataset, time range, calculations)
+- Honeycomb API constraints and limits
+- Best practices for query performance
 - Common mistakes and anti-patterns
 
 ### Rule Naming
@@ -23,54 +23,52 @@ Rules follow the format `WHC<NNN>` where:
 
 | Level | Description | Exit Code |
 |-------|-------------|-----------|
-| **error** | Must fix - breaks compilation or runtime | 1 |
-| **warning** | Should fix - violates best practices | 1 |
-| **info** | Consider fixing - suggestions for improvement | 0 |
+| **error** | Must fix - violates Honeycomb constraints or missing required fields | 1 |
+| **warning** | Should fix - potential performance or usability issue | 1 |
 
 ---
 
 ## Rule Index
 
-| Rule | Description | Severity | Auto-fix |
-|------|-------------|----------|----------|
-| [WHC001](#whc001-use-typed-calculation-functions) | Use typed calculation functions | error | Yes |
-| [WHC002](#whc002-use-typed-filter-functions) | Use typed filter functions | error | Yes |
-| [WHC003](#whc003-validate-dataset-references) | Validate dataset references | warning | No |
-| [WHC004](#whc004-validate-time-range) | Validate time range values | error | No |
-| [WHC005](#whc005-unique-calculation-names) | Ensure calculation names are unique | warning | No |
-| [WHC006](#whc006-avoid-excessive-breakdowns) | Avoid excessive breakdowns | warning | No |
-| [WHC007](#whc007-prefer-direct-field-references) | Prefer direct field references | info | Yes |
-| [WHC008](#whc008-validate-filter-values) | Validate filter value types | error | No |
-| [WHC009](#whc009-check-calculation-field-compatibility) | Check calculation-field compatibility | warning | No |
-| [WHC010](#whc010-limit-query-complexity) | Limit query complexity | info | No |
+| Rule | Description | Severity |
+|------|-------------|----------|
+| [WHC001](#whc001-missing-dataset) | Missing dataset | error |
+| [WHC002](#whc002-missing-time-range) | Missing time range | error |
+| [WHC003](#whc003-empty-calculations) | Empty calculations | error |
+| [WHC004](#whc004-breakdown-without-order) | Breakdown without order | warning |
+| [WHC005](#whc005-high-cardinality-breakdown) | High cardinality breakdown | warning |
+| [WHC006](#whc006-invalid-calculation-for-column-type) | Invalid calculation for column type | error |
+| [WHC007](#whc007-invalid-filter-operator) | Invalid filter operator | error |
+| [WHC008](#whc008-missing-limit-with-breakdowns) | Missing limit with breakdowns | warning |
+| [WHC009](#whc009-time-range-exceeds-7-days) | Time range exceeds 7 days | error |
+| [WHC010](#whc010-excessive-filter-count) | Excessive filter count | warning |
 
 ---
 
 ## Rules
 
-### WHC001: Use typed calculation functions
+### WHC001: Missing dataset
 
 **Severity:** error
-**Auto-fix:** Yes
 
 **Description:**
 
-Use typed calculation functions (`query.P99()`, `query.Count()`, etc.) instead of raw struct initialization.
+Every query must specify a dataset. This is a required field for the Honeycomb Query API.
 
 **Why:**
 
-- Type safety: Compile-time validation of calculation types
-- Readability: Clear, self-documenting code
-- Maintainability: Easier to refactor and update
+- Honeycomb requires a target dataset for all queries
+- Queries without a dataset will fail at the API level
 
 **Bad:**
 
 ```go
 var MyQuery = query.Query{
+    TimeRange: query.Hours(1),
     Calculations: []query.Calculation{
-        {Type: "P99", Field: "duration_ms"},
-        {Type: "COUNT"},
+        query.Count(),
     },
+    // Missing Dataset field
 }
 ```
 
@@ -78,172 +76,86 @@ var MyQuery = query.Query{
 
 ```go
 var MyQuery = query.Query{
+    Dataset:   "production",
+    TimeRange: query.Hours(1),
     Calculations: []query.Calculation{
-        query.P99("duration_ms"),
         query.Count(),
     },
 }
 ```
 
-**Auto-fix:**
-
-Automatically replaces raw struct initialization with typed function calls.
-
 ---
 
-### WHC002: Use typed filter functions
+### WHC002: Missing time range
 
 **Severity:** error
-**Auto-fix:** Yes
 
 **Description:**
 
-Use typed filter functions (`query.GT()`, `query.Equals()`, etc.) instead of raw map initialization.
+Every query must specify a time range, either as a relative duration or absolute start/end times.
 
 **Why:**
 
-- Type safety: Prevents invalid filter operations
-- Validation: Function parameters are validated at compile time
-- Consistency: Matches Honeycomb filter patterns
+- Honeycomb requires a time window for all queries
+- Queries without a time range will fail at the API level
 
 **Bad:**
 
 ```go
 var MyQuery = query.Query{
-    Filters: []query.Filter{
-        {Column: "duration_ms", Op: ">", Value: 500},
-        {Column: "user_id", Op: "exists"},
+    Dataset: "production",
+    Calculations: []query.Calculation{
+        query.Count(),
     },
+    // Missing TimeRange field
 }
 ```
 
 **Good:**
 
 ```go
+// Relative time range
 var MyQuery = query.Query{
-    Filters: []query.Filter{
-        query.GT("duration_ms", 500),
-        query.Exists("user_id"),
+    Dataset:   "production",
+    TimeRange: query.Hours(2),
+    Calculations: []query.Calculation{
+        query.Count(),
     },
 }
-```
 
-**Auto-fix:**
-
-Automatically replaces raw map initialization with typed function calls.
-
----
-
-### WHC003: Validate dataset references
-
-**Severity:** warning
-**Auto-fix:** No
-
-**Description:**
-
-Dataset names should reference defined constants or be validated against known datasets.
-
-**Why:**
-
-- Prevents typos in dataset names
-- Makes dataset changes easier to track
-- Improves refactoring safety
-
-**Bad:**
-
-```go
-var MyQuery = query.Query{
-    Dataset: "production",  // Hard-coded string
-}
-```
-
-**Good:**
-
-```go
-const (
-    DatasetProduction = "production"
-    DatasetStaging    = "staging"
-)
-
-var MyQuery = query.Query{
-    Dataset: DatasetProduction,
-}
-```
-
-**Auto-fix:**
-
-Not available. Requires manual definition of dataset constants.
-
----
-
-### WHC004: Validate time range
-
-**Severity:** error
-**Auto-fix:** No
-
-**Description:**
-
-Time range values must be positive and use typed functions.
-
-**Why:**
-
-- Prevents invalid time ranges (negative, zero)
-- Ensures Honeycomb API compatibility
-- Catches common mistakes early
-
-**Bad:**
-
-```go
-var MyQuery = query.Query{
-    TimeRange: 0,           // Invalid: zero
-}
-
+// Absolute time range
 var AnotherQuery = query.Query{
-    TimeRange: -3600,       // Invalid: negative
+    Dataset: "production",
+    TimeRange: query.Absolute(startTime, endTime),
+    Calculations: []query.Calculation{
+        query.Count(),
+    },
 }
 ```
 
-**Good:**
+---
+
+### WHC003: Empty calculations
+
+**Severity:** error
+
+**Description:**
+
+Every query must have at least one calculation. A query without calculations would return no useful data.
+
+**Why:**
+
+- Calculations define what aggregations to compute
+- Honeycomb requires at least one calculation per query
+
+**Bad:**
 
 ```go
 var MyQuery = query.Query{
+    Dataset:   "production",
     TimeRange: query.Hours(1),
-}
-
-var AnotherQuery = query.Query{
-    TimeRange: query.Days(7),
-}
-```
-
-**Auto-fix:**
-
-Not available. Requires manual correction of time range values.
-
----
-
-### WHC005: Unique calculation names
-
-**Severity:** warning
-**Auto-fix:** No
-
-**Description:**
-
-When using named calculations, ensure names are unique within a query.
-
-**Why:**
-
-- Prevents ambiguous results
-- Makes query results easier to parse
-- Aligns with Honeycomb best practices
-
-**Bad:**
-
-```go
-var MyQuery = query.Query{
-    Calculations: []query.Calculation{
-        query.Avg("duration_ms").As("avg_duration"),
-        query.Avg("response_time").As("avg_duration"),  // Duplicate name
-    },
+    Breakdowns: []string{"endpoint"},
+    // Missing Calculations
 }
 ```
 
@@ -251,141 +163,98 @@ var MyQuery = query.Query{
 
 ```go
 var MyQuery = query.Query{
+    Dataset:   "production",
+    TimeRange: query.Hours(1),
+    Breakdowns: []string{"endpoint"},
     Calculations: []query.Calculation{
-        query.Avg("duration_ms").As("avg_duration_ms"),
-        query.Avg("response_time").As("avg_response_time"),
-    },
-}
-```
-
-**Auto-fix:**
-
-Not available. Requires manual renaming of calculations.
-
----
-
-### WHC006: Avoid excessive breakdowns
-
-**Severity:** warning
-**Auto-fix:** No
-
-**Description:**
-
-Queries with more than 5 breakdowns may have performance issues or be difficult to interpret.
-
-**Why:**
-
-- Performance: Too many breakdowns can slow query execution
-- Usability: Results become difficult to visualize and interpret
-- Best practice: Honeycomb recommends limiting breakdowns
-
-**Bad:**
-
-```go
-var MyQuery = query.Query{
-    Breakdowns: []string{
-        "endpoint", "service", "region",
-        "user_id", "device", "browser", "os",  // 7 breakdowns
-    },
-}
-```
-
-**Good:**
-
-```go
-var MyQuery = query.Query{
-    Breakdowns: []string{
-        "endpoint", "service", "region",  // 3 breakdowns
-    },
-}
-```
-
-**Auto-fix:**
-
-Not available. Requires manual query redesign.
-
----
-
-### WHC007: Prefer direct field references
-
-**Severity:** info
-**Auto-fix:** Yes
-
-**Description:**
-
-When referencing fields in calculations and filters, prefer direct string references over variables unless the field name is reused multiple times.
-
-**Why:**
-
-- Clarity: Direct references are easier to read
-- Simplicity: Reduces unnecessary indirection
-- Convention: Matches Honeycomb patterns
-
-**Bad:**
-
-```go
-const durationField = "duration_ms"
-
-var MyQuery = query.Query{
-    Calculations: []query.Calculation{
-        query.P99(durationField),  // Only used once
-    },
-}
-```
-
-**Good:**
-
-```go
-var MyQuery = query.Query{
-    Calculations: []query.Calculation{
+        query.Count(),
         query.P99("duration_ms"),
     },
 }
+```
 
-// OR if field is reused multiple times:
-const durationField = "duration_ms"
+---
 
-var ComplexQuery = query.Query{
+### WHC004: Breakdown without order
+
+**Severity:** warning
+
+**Description:**
+
+Queries with breakdowns should specify an ordering to ensure consistent, predictable results.
+
+**Why:**
+
+- Without explicit ordering, result order may vary between query executions
+- Makes it harder to compare results over time
+- Dashboard displays may be inconsistent
+
+**Triggers:**
+
+This rule triggers when a query has one or more breakdowns specified.
+
+**Example:**
+
+```go
+// This query will trigger WHC004
+var MyQuery = query.Query{
+    Dataset:   "production",
+    TimeRange: query.Hours(1),
+    Breakdowns: []string{"endpoint", "service"},
     Calculations: []query.Calculation{
-        query.P99(durationField),
-        query.Avg(durationField),
-        query.Max(durationField),
+        query.Count(),
     },
-    Filters: []query.Filter{
-        query.GT(durationField, 500),
+    // No Orders field specified
+}
+```
+
+**Fix:**
+
+Add explicit ordering to your query:
+
+```go
+var MyQuery = query.Query{
+    Dataset:   "production",
+    TimeRange: query.Hours(1),
+    Breakdowns: []string{"endpoint", "service"},
+    Calculations: []query.Calculation{
+        query.Count(),
+    },
+    Orders: []query.Order{
+        {Op: "COUNT", Order: "descending"},
     },
 }
 ```
 
-**Auto-fix:**
-
-Automatically inlines field references used only once.
-
 ---
 
-### WHC008: Validate filter values
+### WHC005: High cardinality breakdown
 
-**Severity:** error
-**Auto-fix:** No
+**Severity:** warning
 
 **Description:**
 
-Filter values must be compatible with the filter operation and field type.
+Queries with a limit greater than 100 may return high-cardinality results that are difficult to visualize and analyze.
 
 **Why:**
 
-- Type safety: Prevents runtime errors
-- Validation: Catches mismatched types early
-- Honeycomb compatibility: Ensures filters work as expected
+- High cardinality results are harder to interpret
+- May cause performance issues in Honeycomb UI
+- Dashboard visualizations become cluttered
+
+**Threshold:** Limit > 100
 
 **Bad:**
 
 ```go
 var MyQuery = query.Query{
-    Filters: []query.Filter{
-        query.GT("duration_ms", "500"),     // String instead of int
-        query.Equals("count", 3.14),        // Float for count field
+    Dataset:   "production",
+    TimeRange: query.Hours(1),
+    Breakdowns: []string{"user_id"},
+    Calculations: []query.Calculation{
+        query.Count(),
     },
+    Limit: 1000, // High cardinality
 }
 ```
 
@@ -393,40 +262,50 @@ var MyQuery = query.Query{
 
 ```go
 var MyQuery = query.Query{
-    Filters: []query.Filter{
-        query.GT("duration_ms", 500),
-        query.Equals("count", 3),
+    Dataset:   "production",
+    TimeRange: query.Hours(1),
+    Breakdowns: []string{"user_id"},
+    Calculations: []query.Calculation{
+        query.Count(),
     },
+    Limit: 100, // Reasonable cardinality
 }
 ```
 
-**Auto-fix:**
-
-Not available. Requires manual type correction.
-
 ---
 
-### WHC009: Check calculation-field compatibility
+### WHC006: Invalid calculation for column type
 
-**Severity:** warning
-**Auto-fix:** No
+**Severity:** error
 
 **Description:**
 
-Ensure calculations are compatible with field types (e.g., percentiles on numeric fields only).
+Numeric calculations (percentiles, SUM, AVG, etc.) should not be used on columns that appear to be string fields.
 
 **Why:**
 
-- Prevents query errors
-- Aligns with Honeycomb field semantics
-- Catches common mistakes
+- Percentile and sum operations require numeric values
+- Using numeric operations on string columns will cause query errors
+- Early detection prevents runtime failures
+
+**Detection:**
+
+Uses heuristic pattern matching to detect likely string columns:
+- Column names containing: `name`, `message`, `error`, `status`, `endpoint`, `path`, `url`, `type`, `service`, `env`, `environment`
+- Excludes columns with numeric suffixes: `_ms`, `_bytes`, `_count`
+
+**Invalid Calculations for String Columns:**
+
+`P50`, `P75`, `P90`, `P95`, `P99`, `P999`, `SUM`, `AVG`, `MIN`, `MAX`, `HEATMAP`
 
 **Bad:**
 
 ```go
 var MyQuery = query.Query{
+    Dataset:   "production",
+    TimeRange: query.Hours(1),
     Calculations: []query.Calculation{
-        query.P99("endpoint"),      // P99 on string field
+        query.P99("endpoint"),      // Percentile on string field
         query.Sum("error_message"), // Sum on string field
     },
 }
@@ -436,60 +315,60 @@ var MyQuery = query.Query{
 
 ```go
 var MyQuery = query.Query{
+    Dataset:   "production",
+    TimeRange: query.Hours(1),
     Calculations: []query.Calculation{
-        query.P99("duration_ms"),   // P99 on numeric field
-        query.Count(),              // Count is always valid
-        query.CountDistinct("endpoint"), // CountDistinct on string
+        query.P99("duration_ms"),       // Percentile on numeric field
+        query.CountDistinct("endpoint"), // Count distinct on string field
     },
 }
 ```
 
-**Auto-fix:**
-
-Not available. Requires manual calculation correction.
-
-**Note:** This rule requires schema information to determine field types. Without schema metadata, this is a best-effort check based on field naming conventions.
-
 ---
 
-### WHC010: Limit query complexity
+### WHC007: Invalid filter operator
 
-**Severity:** info
-**Auto-fix:** No
+**Severity:** error
 
 **Description:**
 
-Queries with many filters, calculations, and breakdowns may be difficult to maintain and understand. Consider splitting into multiple queries.
+Filter operators must be valid Honeycomb filter operators.
 
 **Why:**
 
-- Maintainability: Simpler queries are easier to understand
-- Performance: Complex queries may be slower
-- Debugging: Easier to isolate issues
+- Invalid operators will cause API errors
+- Typos in operators are common mistakes
+
+**Valid Operators:**
+
+| Operator | Description |
+|----------|-------------|
+| `=` | Equals |
+| `!=` | Not equals |
+| `>` | Greater than |
+| `>=` | Greater than or equal |
+| `<` | Less than |
+| `<=` | Less than or equal |
+| `contains` | String contains |
+| `does-not-contain` | String does not contain |
+| `exists` | Field exists |
+| `does-not-exist` | Field does not exist |
+| `starts-with` | String starts with |
+| `in` | Value in list |
+| `not-in` | Value not in list |
 
 **Bad:**
 
 ```go
-var ComplexQuery = query.Query{
+var MyQuery = query.Query{
     Dataset:   "production",
-    TimeRange: query.Hours(24),
-    Breakdowns: []string{"endpoint", "service", "region", "user_type"},
+    TimeRange: query.Hours(1),
     Calculations: []query.Calculation{
         query.Count(),
-        query.P50("duration_ms"),
-        query.P95("duration_ms"),
-        query.P99("duration_ms"),
-        query.Avg("duration_ms"),
-        query.Max("duration_ms"),
-        query.Sum("bytes_sent"),
-        query.CountDistinct("user_id"),
     },
     Filters: []query.Filter{
-        query.GT("duration_ms", 100),
-        query.Exists("user_id"),
-        query.Contains("endpoint", "/api/"),
-        query.NotEquals("status", 200),
-        query.LT("error_count", 10),
+        {Column: "status", Op: "==", Value: "error"},  // Invalid: use "="
+        {Column: "path", Op: "like", Value: "/api/*"}, // Invalid: use "contains" or "starts-with"
     },
 }
 ```
@@ -497,39 +376,144 @@ var ComplexQuery = query.Query{
 **Good:**
 
 ```go
-// Split into focused queries
-var PerformanceMetrics = query.Query{
+var MyQuery = query.Query{
     Dataset:   "production",
-    TimeRange: query.Hours(24),
-    Breakdowns: []string{"endpoint", "service"},
-    Calculations: []query.Calculation{
-        query.P95("duration_ms"),
-        query.P99("duration_ms"),
-    },
-    Filters: []query.Filter{
-        query.GT("duration_ms", 100),
-    },
-}
-
-var UserMetrics = query.Query{
-    Dataset:   "production",
-    TimeRange: query.Hours(24),
-    Breakdowns: []string{"user_type", "region"},
+    TimeRange: query.Hours(1),
     Calculations: []query.Calculation{
         query.Count(),
-        query.CountDistinct("user_id"),
     },
     Filters: []query.Filter{
-        query.Exists("user_id"),
+        query.Equals("status", "error"),
+        query.StartsWith("path", "/api/"),
     },
 }
 ```
 
-**Auto-fix:**
+---
 
-Not available. Requires manual query redesign.
+### WHC008: Missing limit with breakdowns
 
-**Threshold:** Query is flagged if total of (filters + calculations + breakdowns) exceeds 15.
+**Severity:** warning
+
+**Description:**
+
+Queries with breakdowns should specify a limit to prevent returning too many results.
+
+**Why:**
+
+- Without a limit, queries may return thousands of groups
+- Large result sets impact performance
+- Honeycomb applies a default limit, which may not match expectations
+
+**Bad:**
+
+```go
+var MyQuery = query.Query{
+    Dataset:   "production",
+    TimeRange: query.Hours(1),
+    Breakdowns: []string{"user_id", "endpoint"},
+    Calculations: []query.Calculation{
+        query.Count(),
+    },
+    // No Limit specified
+}
+```
+
+**Good:**
+
+```go
+var MyQuery = query.Query{
+    Dataset:   "production",
+    TimeRange: query.Hours(1),
+    Breakdowns: []string{"user_id", "endpoint"},
+    Calculations: []query.Calculation{
+        query.Count(),
+    },
+    Limit: 100,
+}
+```
+
+---
+
+### WHC009: Time range exceeds 7 days
+
+**Severity:** error
+
+**Description:**
+
+Honeycomb has a maximum time range of 7 days for queries. Queries exceeding this limit will fail.
+
+**Why:**
+
+- Honeycomb API enforces a 7-day maximum time range
+- Queries exceeding this will return an error
+- Large time ranges have significant performance implications
+
+**Threshold:** 604,800 seconds (7 days)
+
+**Bad:**
+
+```go
+var MyQuery = query.Query{
+    Dataset:   "production",
+    TimeRange: query.Days(30), // 30 days exceeds limit
+    Calculations: []query.Calculation{
+        query.Count(),
+    },
+}
+```
+
+**Good:**
+
+```go
+var MyQuery = query.Query{
+    Dataset:   "production",
+    TimeRange: query.Days(7), // Maximum allowed
+    Calculations: []query.Calculation{
+        query.Count(),
+    },
+}
+```
+
+---
+
+### WHC010: Excessive filter count
+
+**Severity:** warning
+
+**Description:**
+
+Queries with more than 50 filters may have performance issues and are difficult to maintain.
+
+**Why:**
+
+- Many filters increase query complexity
+- Performance degrades with filter count
+- Queries become hard to understand and debug
+
+**Threshold:** > 50 filters
+
+**Bad:**
+
+```go
+var MyQuery = query.Query{
+    Dataset:   "production",
+    TimeRange: query.Hours(1),
+    Calculations: []query.Calculation{
+        query.Count(),
+    },
+    Filters: []query.Filter{
+        // 51+ filters...
+    },
+}
+```
+
+**Good:**
+
+Consider restructuring queries with many filters:
+- Use `in` operator for multiple value matches
+- Split into multiple focused queries
+- Use derived columns in Honeycomb
 
 ---
 
@@ -537,77 +521,15 @@ Not available. Requires manual query redesign.
 
 ### Command Line
 
-Disable specific rules with `--disable`:
+Check specific rules only:
 
 ```bash
-wetwire-honeycomb lint --disable WHC003,WHC007 ./queries/...
-```
-
-### Configuration File
-
-Disable rules in `.wetwire-honeycomb.yaml`:
-
-```yaml
-lint:
-  disabled_rules:
-    - WHC003
-    - WHC007
+wetwire-honeycomb lint --rules WHC001,WHC002 ./queries/...
 ```
 
 ### Inline Comments
 
-Disable rules for specific lines with comments:
-
-```go
-var MyQuery = query.Query{
-    Dataset: "production", // wetwire:disable WHC003
-}
-```
-
-Disable all rules for a query:
-
-```go
-// wetwire:disable-all
-var LegacyQuery = query.Query{
-    // ...
-}
-```
-
----
-
-## Configuring Severity
-
-Override severity levels in `.wetwire-honeycomb.yaml`:
-
-```yaml
-lint:
-  severity_overrides:
-    WHC003: error    # Promote to error
-    WHC007: warning  # Promote to warning
-    WHC010: ignore   # Ignore completely
-```
-
----
-
-## Auto-fix Behavior
-
-Rules marked as auto-fixable can be corrected with `--fix`:
-
-```bash
-wetwire-honeycomb lint --fix ./queries/...
-```
-
-Auto-fix changes:
-- **WHC001**: Replaces raw calculation structs with typed functions
-- **WHC002**: Replaces raw filter maps with typed functions
-- **WHC007**: Inlines single-use field references
-
-Auto-fix preserves:
-- Code formatting (runs `gofmt` after changes)
-- Comments and documentation
-- Import statements (adds/removes as needed)
-
-Always review auto-fix changes before committing.
+Rules cannot currently be disabled inline. This feature is planned for a future release.
 
 ---
 
@@ -617,16 +539,12 @@ Planned rules for future releases:
 
 | Rule | Description | Priority |
 |------|-------------|----------|
-| WHC011 | Validate field names against schema | High |
-| WHC012 | Check for unused breakdowns | Medium |
-| WHC013 | Suggest query optimizations | Low |
-| WHC014 | Detect duplicate queries | Medium |
-| WHC015 | Validate HAVING clause usage | High |
-| WHC016 | Check ORDER BY field references | Medium |
-| WHC017 | Validate LIMIT values | Low |
-| WHC018 | Suggest visualization types | Low |
-| WHC019 | Check time alignment settings | Medium |
-| WHC020 | Validate granularity values | High |
+| WHC011 | Circular dependency detection | High |
+| WHC012 | Secret in filter value | High |
+| WHC013 | Sensitive column exposure | Medium |
+| WHC014 | Hardcoded credentials | High |
+
+See issues [#31](https://github.com/lex00/wetwire-honeycomb-go/issues/31), [#32](https://github.com/lex00/wetwire-honeycomb-go/issues/32) for planned implementations.
 
 ---
 
