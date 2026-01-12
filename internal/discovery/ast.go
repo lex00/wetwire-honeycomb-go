@@ -422,3 +422,135 @@ func extractOrder(expr ast.Expr) Order {
 
 	return order
 }
+
+// extractStyleMetadata extracts style metadata from a query composite literal.
+func extractStyleMetadata(comp *ast.CompositeLit) StyleMetadata {
+	var meta StyleMetadata
+
+	for _, elt := range comp.Elts {
+		kv, ok := elt.(*ast.KeyValueExpr)
+		if !ok {
+			continue
+		}
+
+		key, ok := kv.Key.(*ast.Ident)
+		if !ok {
+			continue
+		}
+
+		switch key.Name {
+		case "Calculations":
+			meta.InlineCalculationCount = countInlineDefinitions(kv.Value)
+		case "Filters":
+			meta.InlineFilterCount = countInlineDefinitions(kv.Value)
+		}
+
+		// Check for raw map literals in any field
+		if hasRawMapLiteral(kv.Value) {
+			meta.HasRawMapLiteral = true
+		}
+	}
+
+	// Calculate nesting depth
+	meta.MaxNestingDepth = calculateNestingDepth(comp)
+
+	return meta
+}
+
+// countInlineDefinitions counts the number of inline composite literal definitions
+// in a slice expression. An inline definition is a composite literal (e.g., query.Calculation{...})
+// rather than a reference to a named variable.
+func countInlineDefinitions(expr ast.Expr) int {
+	count := 0
+
+	comp, ok := expr.(*ast.CompositeLit)
+	if !ok {
+		return 0
+	}
+
+	for _, elt := range comp.Elts {
+		switch e := elt.(type) {
+		case *ast.CompositeLit:
+			// Composite literal (inline definition)
+			count++
+		case *ast.CallExpr:
+			// Function call like query.P99("col") is considered inline
+			// but helper functions like query.Count() are acceptable
+			if sel, ok := e.Fun.(*ast.SelectorExpr); ok {
+				if ident, ok := sel.X.(*ast.Ident); ok && ident.Name == "query" {
+					// This is a typed builder call, which is fine
+					continue
+				}
+			}
+			count++
+		case *ast.Ident:
+			// Reference to a named variable - not inline
+			continue
+		default:
+			// Unknown, count as inline to be safe
+			count++
+		}
+	}
+
+	return count
+}
+
+// hasRawMapLiteral checks if an expression contains raw map literals
+// instead of typed structs.
+func hasRawMapLiteral(expr ast.Expr) bool {
+	found := false
+
+	ast.Inspect(expr, func(n ast.Node) bool {
+		if found {
+			return false
+		}
+
+		if comp, ok := n.(*ast.CompositeLit); ok {
+			// Check if this is a map type
+			if mapType, ok := comp.Type.(*ast.MapType); ok {
+				// This is a map literal - check if it's map[string]interface{} or similar
+				if _, ok := mapType.Key.(*ast.Ident); ok {
+					found = true
+					return false
+				}
+			}
+		}
+
+		return true
+	})
+
+	return found
+}
+
+// calculateNestingDepth calculates the maximum nesting depth of composite literals.
+func calculateNestingDepth(expr ast.Expr) int {
+	maxDepth := 0
+
+	var walk func(n ast.Node, depth int)
+	walk = func(n ast.Node, depth int) {
+		if n == nil {
+			return
+		}
+
+		if _, ok := n.(*ast.CompositeLit); ok {
+			if depth > maxDepth {
+				maxDepth = depth
+			}
+			depth++
+		}
+
+		ast.Inspect(n, func(child ast.Node) bool {
+			if child == n {
+				return true
+			}
+			if child != nil {
+				walk(child, depth)
+			}
+			return false
+		})
+	}
+
+	walk(expr, 0)
+
+	return maxDepth
+}
