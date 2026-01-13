@@ -8,6 +8,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- **Trigger package** (`trigger/`) for type-safe trigger declarations (#50)
+  - `Trigger` struct with Name, Description, Dataset, Query, Threshold, Frequency, Recipients, Disabled
+  - `Threshold` with comparison operators (`GT`, `GTE`, `LT`, `LTE`)
+  - `Frequency` with `Minutes()` and `Seconds()` builders
+  - `Recipient` with `SlackChannel()`, `PagerDutyService()`, `EmailAddress()`, `WebhookURL()` builders
 - **SLO package** (`slo/`) for type-safe SLO declarations (#49)
   - `SLO` struct with Name, Description, Dataset, SLI, Target, TimePeriod, BurnAlerts
   - `SLI` struct with direct query references (GoodEvents, TotalEvents)
