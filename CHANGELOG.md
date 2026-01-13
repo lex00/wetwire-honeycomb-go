@@ -8,6 +8,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- **Lint rules WHC030-056** for boards, SLOs, and triggers (#53)
+  - Board rules: WHC030 (no panels), WHC034 (exceeds 20 panels)
+  - SLO rules: WHC040 (missing name), WHC044 (target out of range), WHC047 (no burn alerts)
+  - Trigger rules: WHC050 (missing name), WHC053 (no recipients), WHC054 (frequency under 1min), WHC056 (disabled)
+  - New types: `BoardRule`, `SLORule`, `TriggerRule` with Check functions
 - **Serialization extensions** for boards, SLOs, and triggers (#52)
   - `BoardToJSON()` / `BoardToJSONPretty()` for board serialization
   - `SLOToJSON()` / `SLOToJSONPretty()` for SLO serialization
