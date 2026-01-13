@@ -8,6 +8,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- **Board package** (`board/`) for type-safe board declarations (#48)
+  - `Board` struct with Name, Description, Panels, PresetFilters, Tags
+  - `Panel` interface with Query, SLO, and Text panel implementations
+  - `PanelOption` pattern for `WithTitle` and `WithPosition`
 - Query type definitions with full Honeycomb Query API support
 - AST-based query discovery for Go source files
 - JSON serialization with proper Honeycomb Query format
