@@ -8,6 +8,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- **SLO package** (`slo/`) for type-safe SLO declarations (#49)
+  - `SLO` struct with Name, Description, Dataset, SLI, Target, TimePeriod, BurnAlerts
+  - `SLI` struct with direct query references (GoodEvents, TotalEvents)
+  - `Target` and `TimePeriod` types with `Percentage()` and `Days()` builders
+  - `BurnAlert` with `FastBurn()` and `SlowBurn()` helpers
+  - `Recipient` type for notification targets
 - **Board package** (`board/`) for type-safe board declarations (#48)
   - `Board` struct with Name, Description, Panels, PresetFilters, Tags
   - `Panel` interface with Query, SLO, and Text panel implementations
