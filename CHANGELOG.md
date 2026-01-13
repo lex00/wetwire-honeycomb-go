@@ -8,6 +8,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- **Serialization extensions** for boards, SLOs, and triggers (#52)
+  - `BoardToJSON()` / `BoardToJSONPretty()` for board serialization
+  - `SLOToJSON()` / `SLOToJSONPretty()` for SLO serialization
+  - `TriggerToJSON()` / `TriggerToJSONPretty()` for trigger serialization
+  - Export `board.PanelConfig` for serialization access
 - **Discovery extensions** for boards, SLOs, and triggers (#51)
   - `DiscoverBoards()` finds board.Board declarations with panel count, query/SLO refs
   - `DiscoverSLOs()` finds slo.SLO declarations with target, time period, burn alerts
