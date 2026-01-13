@@ -8,6 +8,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- **CLI enhancements** for full resource support (#54)
+  - `list` command now shows all resources (queries, boards, SLOs, triggers)
+  - `lint` command now validates all resource types with WHC001-056 rules
+  - `build` command now outputs all resources with grouped JSON structure
+  - New `--type` flag to filter resources by type
+  - `LintBoards()`, `LintSLOs()`, `LintTriggers()`, `LintAll()` functions in lint package
 - **Lint rules WHC030-056** for boards, SLOs, and triggers (#53)
   - Board rules: WHC030 (no panels), WHC034 (exceeds 20 panels)
   - SLO rules: WHC040 (missing name), WHC044 (target out of range), WHC047 (no burn alerts)
