@@ -50,6 +50,18 @@ Rules follow the format `WHC<NNN>` where:
 | [WHC021](#whc021-inline-filter-definition) | Inline filter definition | warning |
 | [WHC022](#whc022-raw-map-literal) | Raw map literal | warning |
 | [WHC023](#whc023-deeply-nested-configuration) | Deeply nested configuration | warning |
+| **Board Rules** | | |
+| [WHC030](#whc030-board-has-no-panels) | Board has no panels | error |
+| [WHC034](#whc034-board-exceeds-panel-limit) | Board exceeds panel limit | warning |
+| **SLO Rules** | | |
+| [WHC040](#whc040-slo-missing-name) | SLO missing name | error |
+| [WHC044](#whc044-target-out-of-range) | Target out of range | error |
+| [WHC047](#whc047-slo-no-burn-alerts) | SLO no burn alerts | warning |
+| **Trigger Rules** | | |
+| [WHC050](#whc050-trigger-missing-name) | Trigger missing name | error |
+| [WHC053](#whc053-trigger-no-recipients) | Trigger no recipients | warning |
+| [WHC054](#whc054-trigger-frequency-under-1-minute) | Trigger frequency under 1 minute | warning |
+| [WHC056](#whc056-trigger-is-disabled) | Trigger is disabled | info |
 
 ---
 
@@ -978,6 +990,348 @@ var MyQuery = query.Query{
     Dataset:      "production",
     TimeRange:    query.Hours(1),
     Calculations: []query.Calculation{LatencyHeatmap},
+}
+```
+
+---
+
+## Board Rules
+
+### WHC030: Board has no panels
+
+**Severity:** error
+
+**Description:**
+
+Every board must have at least one panel. Empty boards serve no purpose.
+
+**Why:**
+
+- Honeycomb boards require panels to display content
+- Empty boards provide no value to users
+
+**Bad:**
+
+```go
+var EmptyBoard = board.Board{
+    Name: "Empty Dashboard",
+    // No Panels
+}
+```
+
+**Good:**
+
+```go
+var ServiceBoard = board.Board{
+    Name: "Service Dashboard",
+    Panels: []board.Panel{
+        board.QueryPanel(ServiceLatency),
+        board.QueryPanel(ErrorRate),
+    },
+}
+```
+
+---
+
+### WHC034: Board exceeds panel limit
+
+**Severity:** warning
+
+**Description:**
+
+Boards with more than 20 panels may have performance issues and are harder to navigate.
+
+**Why:**
+
+- Large boards take longer to load
+- Too many panels make it difficult to find relevant data
+- Consider splitting into multiple focused boards
+
+**Bad:**
+
+```go
+var MegaBoard = board.Board{
+    Name: "Everything Dashboard",
+    Panels: []board.Panel{
+        // 25+ panels...
+    },
+}
+```
+
+**Good:**
+
+```go
+// Split into focused boards
+var LatencyBoard = board.Board{
+    Name: "Latency Overview",
+    Panels: []board.Panel{/* 5-8 latency panels */},
+}
+
+var ErrorBoard = board.Board{
+    Name: "Error Analysis",
+    Panels: []board.Panel{/* 5-8 error panels */},
+}
+```
+
+---
+
+## SLO Rules
+
+### WHC040: SLO missing name
+
+**Severity:** error
+
+**Description:**
+
+Every SLO must have a name for identification in Honeycomb.
+
+**Why:**
+
+- SLOs without names are hard to identify
+- Required for proper organization and alerting
+
+**Bad:**
+
+```go
+var MySLO = slo.SLO{
+    Dataset: "production",
+    SLI: slo.SLI{
+        GoodEvents:  SuccessfulRequests,
+        TotalEvents: AllRequests,
+    },
+    Target: slo.Percentage(99.9),
+    // Missing Name
+}
+```
+
+**Good:**
+
+```go
+var APIAvailability = slo.SLO{
+    Name:    "API Availability",
+    Dataset: "production",
+    SLI: slo.SLI{
+        GoodEvents:  SuccessfulRequests,
+        TotalEvents: AllRequests,
+    },
+    Target: slo.Percentage(99.9),
+}
+```
+
+---
+
+### WHC044: Target out of range
+
+**Severity:** error
+
+**Description:**
+
+SLO target percentage must be between 0 and 100 (exclusive of 0, inclusive of 100).
+
+**Why:**
+
+- 0% target makes no sense (no reliability expected)
+- Values over 100% are mathematically impossible
+
+**Bad:**
+
+```go
+var BadSLO = slo.SLO{
+    Name:   "Impossible SLO",
+    Target: slo.Percentage(101), // Over 100%
+}
+
+var ZeroSLO = slo.SLO{
+    Name:   "Zero Target",
+    Target: slo.Percentage(0), // No reliability
+}
+```
+
+**Good:**
+
+```go
+var RealisticSLO = slo.SLO{
+    Name:   "API Availability",
+    Target: slo.Percentage(99.9), // 99.9% availability
+}
+```
+
+---
+
+### WHC047: SLO no burn alerts
+
+**Severity:** warning
+
+**Description:**
+
+SLOs without burn alerts won't notify you when the error budget is being consumed too quickly.
+
+**Why:**
+
+- Burn alerts provide early warning of SLO violations
+- Without alerts, you may only discover issues after the SLO is breached
+
+**Bad:**
+
+```go
+var MySLO = slo.SLO{
+    Name:   "API Availability",
+    Target: slo.Percentage(99.9),
+    // No BurnAlerts configured
+}
+```
+
+**Good:**
+
+```go
+var MySLO = slo.SLO{
+    Name:   "API Availability",
+    Target: slo.Percentage(99.9),
+    BurnAlerts: []slo.BurnAlert{
+        slo.FastBurn(),  // 14.4x burn rate, 1hr window
+        slo.SlowBurn(),  // 1x burn rate, 24hr window
+    },
+}
+```
+
+---
+
+## Trigger Rules
+
+### WHC050: Trigger missing name
+
+**Severity:** error
+
+**Description:**
+
+Every trigger must have a name for identification in alerts.
+
+**Why:**
+
+- Unnamed triggers are hard to identify in alert notifications
+- Required for proper organization and debugging
+
+**Bad:**
+
+```go
+var MyTrigger = trigger.Trigger{
+    Dataset:   "production",
+    Query:     SlowRequests,
+    Threshold: trigger.GreaterThan(500),
+    // Missing Name
+}
+```
+
+**Good:**
+
+```go
+var HighLatencyAlert = trigger.Trigger{
+    Name:      "High P99 Latency",
+    Dataset:   "production",
+    Query:     SlowRequests,
+    Threshold: trigger.GreaterThan(500),
+}
+```
+
+---
+
+### WHC053: Trigger no recipients
+
+**Severity:** warning
+
+**Description:**
+
+Triggers without recipients won't notify anyone when they fire.
+
+**Why:**
+
+- Alerts need to reach someone to be useful
+- Consider adding Slack, PagerDuty, email, or webhook recipients
+
+**Bad:**
+
+```go
+var SilentAlert = trigger.Trigger{
+    Name:      "Silent Alert",
+    Query:     ErrorRate,
+    Threshold: trigger.GreaterThan(0.05),
+    // No Recipients - alert fires but nobody knows
+}
+```
+
+**Good:**
+
+```go
+var EffectiveAlert = trigger.Trigger{
+    Name:      "Error Rate Alert",
+    Query:     ErrorRate,
+    Threshold: trigger.GreaterThan(0.05),
+    Recipients: []trigger.Recipient{
+        trigger.SlackChannel("#alerts"),
+        trigger.PagerDutyService("production-oncall"),
+    },
+}
+```
+
+---
+
+### WHC054: Trigger frequency under 1 minute
+
+**Severity:** warning
+
+**Description:**
+
+Trigger frequencies under 1 minute may cause excessive alerting and API load.
+
+**Why:**
+
+- Very frequent triggers can overwhelm alert channels
+- May not provide actionable information
+- Consider if such high frequency is really needed
+
+**Bad:**
+
+```go
+var TooFrequent = trigger.Trigger{
+    Name:      "Overeager Alert",
+    Query:     SlowRequests,
+    Frequency: trigger.Seconds(30), // Every 30 seconds
+}
+```
+
+**Good:**
+
+```go
+var ReasonableAlert = trigger.Trigger{
+    Name:      "Latency Alert",
+    Query:     SlowRequests,
+    Frequency: trigger.Minutes(5), // Every 5 minutes
+}
+```
+
+---
+
+### WHC056: Trigger is disabled
+
+**Severity:** info
+
+**Description:**
+
+The trigger is explicitly disabled and will not fire alerts.
+
+**Why:**
+
+- This is informational, not necessarily a problem
+- Disabled triggers may be intentional (maintenance, testing)
+- Consider removing if no longer needed
+
+**Example:**
+
+```go
+var DisabledTrigger = trigger.Trigger{
+    Name:     "Temporarily Disabled",
+    Query:    SlowRequests,
+    Disabled: true, // Explicitly disabled
 }
 ```
 
