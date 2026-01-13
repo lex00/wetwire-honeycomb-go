@@ -17,25 +17,25 @@ type Position struct {
 	Height int
 }
 
-// panelConfig holds configuration common to all panel types.
-type panelConfig struct {
+// PanelConfig holds configuration common to all panel types.
+type PanelConfig struct {
 	Title    string
 	Position Position
 }
 
 // PanelOption is a function that configures a panel.
-type PanelOption func(*panelConfig)
+type PanelOption func(*PanelConfig)
 
 // WithTitle sets the title of a panel.
 func WithTitle(title string) PanelOption {
-	return func(c *panelConfig) {
+	return func(c *PanelConfig) {
 		c.Title = title
 	}
 }
 
 // WithPosition sets the position and size of a panel.
 func WithPosition(x, y, width, height int) PanelOption {
-	return func(c *panelConfig) {
+	return func(c *PanelConfig) {
 		c.Position = Position{
 			X:      x,
 			Y:      y,
@@ -48,7 +48,7 @@ func WithPosition(x, y, width, height int) PanelOption {
 // queryPanel represents a panel that displays a query visualization.
 type queryPanel struct {
 	query  query.Query
-	config panelConfig
+	config PanelConfig
 }
 
 func (p *queryPanel) panelType() string {
@@ -61,7 +61,7 @@ func (p *queryPanel) Query() query.Query {
 }
 
 // Config returns the panel configuration.
-func (p *queryPanel) Config() panelConfig {
+func (p *queryPanel) Config() PanelConfig {
 	return p.config
 }
 
@@ -79,7 +79,7 @@ func QueryPanel(q query.Query, opts ...PanelOption) Panel {
 // textPanel represents a panel that displays markdown text.
 type textPanel struct {
 	content string
-	config  panelConfig
+	config  PanelConfig
 }
 
 func (p *textPanel) panelType() string {
@@ -92,7 +92,7 @@ func (p *textPanel) Content() string {
 }
 
 // Config returns the panel configuration.
-func (p *textPanel) Config() panelConfig {
+func (p *textPanel) Config() PanelConfig {
 	return p.config
 }
 
@@ -110,7 +110,7 @@ func TextPanel(content string, opts ...PanelOption) Panel {
 // sloPanel represents a panel that displays an SLO.
 type sloPanel struct {
 	sloID  string
-	config panelConfig
+	config PanelConfig
 }
 
 func (p *sloPanel) panelType() string {
@@ -123,7 +123,7 @@ func (p *sloPanel) SLOID() string {
 }
 
 // Config returns the panel configuration.
-func (p *sloPanel) Config() panelConfig {
+func (p *sloPanel) Config() PanelConfig {
 	return p.config
 }
 
