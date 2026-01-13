@@ -8,6 +8,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- **Discovery extensions** for boards, SLOs, and triggers (#51)
+  - `DiscoverBoards()` finds board.Board declarations with panel count, query/SLO refs
+  - `DiscoverSLOs()` finds slo.SLO declarations with target, time period, burn alerts
+  - `DiscoverTriggers()` finds trigger.Trigger declarations with threshold, frequency, recipients
+  - `DiscoverAll()` discovers all resource types in one call
+  - `DiscoveredResources.TotalCount()` helper for total resource count
 - **Trigger package** (`trigger/`) for type-safe trigger declarations (#50)
   - `Trigger` struct with Name, Description, Dataset, Query, Threshold, Frequency, Recipients, Disabled
   - `Threshold` with comparison operators (`GT`, `GTE`, `LT`, `LTE`)

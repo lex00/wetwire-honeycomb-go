@@ -365,3 +365,54 @@ func GroupByPackage(queries []DiscoveredQuery) map[string][]DiscoveredQuery {
 	}
 	return result
 }
+
+// DiscoveredResources contains all discovered resource types.
+type DiscoveredResources struct {
+	// Queries are discovered query definitions
+	Queries []DiscoveredQuery
+
+	// SLOs are discovered SLO definitions
+	SLOs []DiscoveredSLO
+
+	// Triggers are discovered trigger definitions
+	Triggers []DiscoveredTrigger
+
+	// Boards are discovered board definitions
+	Boards []DiscoveredBoard
+}
+
+// TotalCount returns the total number of discovered resources.
+func (r *DiscoveredResources) TotalCount() int {
+	return len(r.Queries) + len(r.SLOs) + len(r.Triggers) + len(r.Boards)
+}
+
+// DiscoverAll discovers all resource types in the specified directory.
+func DiscoverAll(dir string) (*DiscoveredResources, error) {
+	resources := &DiscoveredResources{}
+
+	queries, err := DiscoverQueries(dir)
+	if err != nil {
+		return nil, fmt.Errorf("failed to discover queries: %w", err)
+	}
+	resources.Queries = queries
+
+	slos, err := DiscoverSLOs(dir)
+	if err != nil {
+		return nil, fmt.Errorf("failed to discover SLOs: %w", err)
+	}
+	resources.SLOs = slos
+
+	triggers, err := DiscoverTriggers(dir)
+	if err != nil {
+		return nil, fmt.Errorf("failed to discover triggers: %w", err)
+	}
+	resources.Triggers = triggers
+
+	boards, err := DiscoverBoards(dir)
+	if err != nil {
+		return nil, fmt.Errorf("failed to discover boards: %w", err)
+	}
+	resources.Boards = boards
+
+	return resources, nil
+}
