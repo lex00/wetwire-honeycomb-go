@@ -145,3 +145,93 @@ func FilterBySeverity(results []LintResult, severity string) []LintResult {
 	}
 	return filtered
 }
+
+// LintBoards runs all board lint rules against the provided boards.
+// Results are sorted by file and line number.
+func LintBoards(boards []discovery.DiscoveredBoard) []LintResult {
+	var results []LintResult
+
+	rules := AllBoardRules()
+	for _, board := range boards {
+		for _, rule := range rules {
+			ruleResults := rule.Check(board)
+			results = append(results, ruleResults...)
+		}
+	}
+
+	sort.Slice(results, func(i, j int) bool {
+		if results[i].File != results[j].File {
+			return results[i].File < results[j].File
+		}
+		return results[i].Line < results[j].Line
+	})
+
+	return results
+}
+
+// LintSLOs runs all SLO lint rules against the provided SLOs.
+// Results are sorted by file and line number.
+func LintSLOs(slos []discovery.DiscoveredSLO) []LintResult {
+	var results []LintResult
+
+	rules := AllSLORules()
+	for _, slo := range slos {
+		for _, rule := range rules {
+			ruleResults := rule.Check(slo)
+			results = append(results, ruleResults...)
+		}
+	}
+
+	sort.Slice(results, func(i, j int) bool {
+		if results[i].File != results[j].File {
+			return results[i].File < results[j].File
+		}
+		return results[i].Line < results[j].Line
+	})
+
+	return results
+}
+
+// LintTriggers runs all trigger lint rules against the provided triggers.
+// Results are sorted by file and line number.
+func LintTriggers(triggers []discovery.DiscoveredTrigger) []LintResult {
+	var results []LintResult
+
+	rules := AllTriggerRules()
+	for _, trigger := range triggers {
+		for _, rule := range rules {
+			ruleResults := rule.Check(trigger)
+			results = append(results, ruleResults...)
+		}
+	}
+
+	sort.Slice(results, func(i, j int) bool {
+		if results[i].File != results[j].File {
+			return results[i].File < results[j].File
+		}
+		return results[i].Line < results[j].Line
+	})
+
+	return results
+}
+
+// LintAll runs all lint rules against all discovered resources.
+// Results are sorted by file and line number.
+func LintAll(resources *discovery.DiscoveredResources) []LintResult {
+	var results []LintResult
+
+	results = append(results, LintQueries(resources.Queries)...)
+	results = append(results, LintBoards(resources.Boards)...)
+	results = append(results, LintSLOs(resources.SLOs)...)
+	results = append(results, LintTriggers(resources.Triggers)...)
+
+	// Sort all results together by file, then line
+	sort.Slice(results, func(i, j int) bool {
+		if results[i].File != results[j].File {
+			return results[i].File < results[j].File
+		}
+		return results[i].Line < results[j].Line
+	})
+
+	return results
+}

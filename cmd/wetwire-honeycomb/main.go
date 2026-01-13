@@ -26,15 +26,18 @@ import (
 	"strings"
 	"time"
 
+	"github.com/lex00/wetwire-honeycomb-go/board"
 	"github.com/lex00/wetwire-honeycomb-go/internal/builder"
 	"github.com/lex00/wetwire-honeycomb-go/internal/discovery"
 	"github.com/lex00/wetwire-honeycomb-go/internal/lint"
 	"github.com/lex00/wetwire-honeycomb-go/internal/serialize"
 	"github.com/lex00/wetwire-honeycomb-go/query"
+	"github.com/lex00/wetwire-honeycomb-go/slo"
+	"github.com/lex00/wetwire-honeycomb-go/trigger"
 	"github.com/spf13/cobra"
 )
 
-const version = "0.2.0"
+const version = "0.3.0"
 
 func main() {
 	rootCmd := &cobra.Command{
@@ -96,10 +99,11 @@ func newBuildCmd() *cobra.Command {
 	var format string
 	var stdout bool
 	var verbose bool
+	var resourceType string
 
 	cmd := &cobra.Command{
 		Use:   "build [packages]",
-		Short: "Synthesize queries to Query JSON",
+		Short: "Synthesize all resources (queries, boards, SLOs, triggers) to JSON",
 		Args:  cobra.MaximumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			path := "."
@@ -107,60 +111,93 @@ func newBuildCmd() *cobra.Command {
 				path = args[0]
 			}
 
-			// Build queries
-			b, err := builder.NewBuilder(path)
+			// Discover all resources
+			resources, err := discovery.DiscoverAll(path)
 			if err != nil {
-				return fmt.Errorf("error: %w", err)
-			}
-
-			result, err := b.Build()
-			if err != nil {
-				return fmt.Errorf("build failed: %w", err)
+				return fmt.Errorf("discovery failed: %w", err)
 			}
 
 			if verbose {
-				fmt.Printf("Discovered %d queries\n", result.QueryCount())
+				fmt.Printf("Discovered %d resources\n", resources.TotalCount())
 			}
 
-			if result.QueryCount() == 0 {
+			if resources.TotalCount() == 0 {
 				if verbose {
-					fmt.Println("No queries found")
+					fmt.Println("No resources found")
 				}
 				return nil
 			}
 
-			// Serialize queries
-			queries := result.Queries()
-			var jsonData []byte
+			// Build output structure
+			outputData := make(map[string]json.RawMessage)
 
-			if len(queries) == 1 {
-				q := discoveredToQuery(queries[0])
-				if format == "pretty" {
-					jsonData, err = serialize.ToJSONPretty(q)
-				} else {
-					jsonData, err = serialize.ToJSON(q)
-				}
-			} else {
-				// Multiple queries - wrap in object
+			// Serialize queries
+			if (resourceType == "" || resourceType == "query" || resourceType == "queries") && len(resources.Queries) > 0 {
 				queryMap := make(map[string]json.RawMessage)
-				for _, dq := range queries {
+				for _, dq := range resources.Queries {
 					q := discoveredToQuery(dq)
-					var data []byte
-					data, err = serialize.ToJSON(q)
-					if err != nil {
-						break
+					data, serr := serialize.ToJSON(q)
+					if serr != nil {
+						return fmt.Errorf("query serialization failed: %w", serr)
 					}
 					queryMap[dq.Name] = data
 				}
-				if err == nil {
-					if format == "pretty" {
-						jsonData, err = json.MarshalIndent(queryMap, "", "  ")
-					} else {
-						jsonData, err = json.Marshal(queryMap)
-					}
-				}
+				data, _ := json.Marshal(queryMap)
+				outputData["queries"] = data
 			}
 
+			// Serialize boards
+			if (resourceType == "" || resourceType == "board" || resourceType == "boards") && len(resources.Boards) > 0 {
+				boardMap := make(map[string]json.RawMessage)
+				for _, db := range resources.Boards {
+					b := discoveredToBoard(db)
+					data, serr := serialize.BoardToJSON(b)
+					if serr != nil {
+						return fmt.Errorf("board serialization failed: %w", serr)
+					}
+					boardMap[db.Name] = data
+				}
+				data, _ := json.Marshal(boardMap)
+				outputData["boards"] = data
+			}
+
+			// Serialize SLOs
+			if (resourceType == "" || resourceType == "slo" || resourceType == "slos") && len(resources.SLOs) > 0 {
+				sloMap := make(map[string]json.RawMessage)
+				for _, ds := range resources.SLOs {
+					s := discoveredToSLO(ds)
+					data, serr := serialize.SLOToJSON(s)
+					if serr != nil {
+						return fmt.Errorf("SLO serialization failed: %w", serr)
+					}
+					sloMap[ds.Name] = data
+				}
+				data, _ := json.Marshal(sloMap)
+				outputData["slos"] = data
+			}
+
+			// Serialize triggers
+			if (resourceType == "" || resourceType == "trigger" || resourceType == "triggers") && len(resources.Triggers) > 0 {
+				triggerMap := make(map[string]json.RawMessage)
+				for _, dt := range resources.Triggers {
+					t := discoveredToTrigger(dt)
+					data, serr := serialize.TriggerToJSON(t)
+					if serr != nil {
+						return fmt.Errorf("trigger serialization failed: %w", serr)
+					}
+					triggerMap[dt.Name] = data
+				}
+				data, _ := json.Marshal(triggerMap)
+				outputData["triggers"] = data
+			}
+
+			// Final JSON output
+			var jsonData []byte
+			if format == "pretty" {
+				jsonData, err = json.MarshalIndent(outputData, "", "  ")
+			} else {
+				jsonData, err = json.Marshal(outputData)
+			}
 			if err != nil {
 				return fmt.Errorf("serialization failed: %w", err)
 			}
@@ -185,6 +222,7 @@ func newBuildCmd() *cobra.Command {
 	cmd.Flags().StringVarP(&format, "format", "f", "json", "Output format: json, pretty")
 	cmd.Flags().BoolVar(&stdout, "stdout", false, "Write to stdout instead of file")
 	cmd.Flags().BoolVarP(&verbose, "verbose", "v", false, "Verbose output")
+	cmd.Flags().StringVarP(&resourceType, "type", "t", "", "Build only specific resource type: query, board, slo, trigger")
 
 	return cmd
 }
@@ -194,7 +232,7 @@ func newLintCmd() *cobra.Command {
 
 	cmd := &cobra.Command{
 		Use:   "lint [packages]",
-		Short: "Check queries for issues",
+		Short: "Check all resources (queries, boards, SLOs, triggers) for issues",
 		Args:  cobra.MaximumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			path := "."
@@ -202,14 +240,14 @@ func newLintCmd() *cobra.Command {
 				path = args[0]
 			}
 
-			// Discover queries
-			queries, err := discovery.DiscoverQueries(path)
+			// Discover all resources
+			resources, err := discovery.DiscoverAll(path)
 			if err != nil {
 				return fmt.Errorf("error: %w", err)
 			}
 
-			// Run lint
-			results := lint.LintQueries(queries)
+			// Run lint on all resources
+			results := lint.LintAll(resources)
 
 			if len(results) == 0 {
 				fmt.Println("No issues found")
@@ -222,9 +260,9 @@ func newLintCmd() *cobra.Command {
 				fmt.Println(string(data))
 			} else {
 				for _, r := range results {
-					severity := "warning"
-					if r.Severity == "error" {
-						severity = "error"
+					severity := r.Severity
+					if severity == "" {
+						severity = "warning"
 					}
 					fmt.Printf("%s:%d: %s: [%s] %s (%s)\n",
 						r.File, r.Line, severity, r.Rule, r.Message, r.Query)
@@ -232,10 +270,8 @@ func newLintCmd() *cobra.Command {
 			}
 
 			// Exit 1 if there are errors
-			for _, r := range results {
-				if r.Severity == "error" {
-					return fmt.Errorf("lint errors found")
-				}
+			if lint.HasErrors(results) {
+				return fmt.Errorf("lint errors found")
 			}
 
 			return nil
@@ -249,10 +285,11 @@ func newLintCmd() *cobra.Command {
 
 func newListCmd() *cobra.Command {
 	var format string
+	var resourceType string
 
 	cmd := &cobra.Command{
 		Use:   "list [packages]",
-		Short: "List all discovered queries",
+		Short: "List all discovered resources (queries, boards, SLOs, triggers)",
 		Args:  cobra.MaximumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			path := "."
@@ -260,20 +297,71 @@ func newListCmd() *cobra.Command {
 				path = args[0]
 			}
 
-			// Discover queries
-			queries, err := discovery.DiscoverQueries(path)
+			// Discover all resources
+			resources, err := discovery.DiscoverAll(path)
 			if err != nil {
 				return fmt.Errorf("error: %w", err)
 			}
 
 			if format == "json" {
-				data, _ := json.MarshalIndent(queries, "", "  ")
+				data, _ := json.MarshalIndent(resources, "", "  ")
 				fmt.Println(string(data))
-			} else {
-				fmt.Printf("Found %d queries:\n", len(queries))
-				for _, q := range queries {
-					fmt.Printf("  %s (%s:%d) - dataset: %s\n",
-						q.Name, filepath.Base(q.File), q.Line, q.Dataset)
+				return nil
+			}
+
+			// Text format output
+			total := resources.TotalCount()
+			fmt.Printf("Found %d resources:\n\n", total)
+
+			// Queries
+			if resourceType == "" || resourceType == "query" || resourceType == "queries" {
+				if len(resources.Queries) > 0 {
+					fmt.Printf("Queries (%d):\n", len(resources.Queries))
+					for _, q := range resources.Queries {
+						fmt.Printf("  %-25s %-30s %s\n",
+							q.Name, filepath.Base(q.File)+":"+fmt.Sprint(q.Line), q.Dataset)
+					}
+					fmt.Println()
+				}
+			}
+
+			// Boards
+			if resourceType == "" || resourceType == "board" || resourceType == "boards" {
+				if len(resources.Boards) > 0 {
+					fmt.Printf("Boards (%d):\n", len(resources.Boards))
+					for _, b := range resources.Boards {
+						fmt.Printf("  %-25s %-30s %d panels\n",
+							b.Name, filepath.Base(b.File)+":"+fmt.Sprint(b.Line), b.PanelCount)
+					}
+					fmt.Println()
+				}
+			}
+
+			// SLOs
+			if resourceType == "" || resourceType == "slo" || resourceType == "slos" {
+				if len(resources.SLOs) > 0 {
+					fmt.Printf("SLOs (%d):\n", len(resources.SLOs))
+					for _, s := range resources.SLOs {
+						fmt.Printf("  %-25s %-30s %.1f%%\n",
+							s.Name, filepath.Base(s.File)+":"+fmt.Sprint(s.Line), s.TargetPercentage)
+					}
+					fmt.Println()
+				}
+			}
+
+			// Triggers
+			if resourceType == "" || resourceType == "trigger" || resourceType == "triggers" {
+				if len(resources.Triggers) > 0 {
+					fmt.Printf("Triggers (%d):\n", len(resources.Triggers))
+					for _, t := range resources.Triggers {
+						status := "enabled"
+						if t.Disabled {
+							status = "disabled"
+						}
+						fmt.Printf("  %-25s %-30s %s\n",
+							t.Name, filepath.Base(t.File)+":"+fmt.Sprint(t.Line), status)
+					}
+					fmt.Println()
 				}
 			}
 
@@ -282,6 +370,7 @@ func newListCmd() *cobra.Command {
 	}
 
 	cmd.Flags().StringVarP(&format, "format", "f", "text", "Output format: text, json")
+	cmd.Flags().StringVarP(&resourceType, "type", "t", "", "Filter by resource type: query, board, slo, trigger")
 
 	return cmd
 }
@@ -756,6 +845,40 @@ func discoveredToQuery(dq discovery.DiscoveredQuery) query.Query {
 	}
 
 	return q
+}
+
+// discoveredToBoard converts a DiscoveredBoard to a board.Board
+func discoveredToBoard(db discovery.DiscoveredBoard) board.Board {
+	return board.Board{
+		Name:        db.BoardName,
+		Description: db.Description,
+		// Panels are not preserved in discovery - would need AST re-evaluation
+		// This provides basic metadata for serialization
+	}
+}
+
+// discoveredToSLO converts a DiscoveredSLO to an slo.SLO
+func discoveredToSLO(ds discovery.DiscoveredSLO) slo.SLO {
+	return slo.SLO{
+		Name:        ds.SLOName,
+		Description: ds.Description,
+		Dataset:     ds.Dataset,
+		Target:      slo.Percentage(ds.TargetPercentage),
+		TimePeriod:  slo.Days(ds.TimePeriodDays),
+		// SLI and BurnAlerts would need AST re-evaluation
+	}
+}
+
+// discoveredToTrigger converts a DiscoveredTrigger to a trigger.Trigger
+func discoveredToTrigger(dt discovery.DiscoveredTrigger) trigger.Trigger {
+	return trigger.Trigger{
+		Name:        dt.TriggerName,
+		Description: dt.Description,
+		Dataset:     dt.Dataset,
+		Frequency:   trigger.Seconds(dt.FrequencySeconds),
+		Disabled:    dt.Disabled,
+		// Query and Recipients would need AST re-evaluation
+	}
 }
 
 // generateGoCode generates Go code from a parsed query JSON
