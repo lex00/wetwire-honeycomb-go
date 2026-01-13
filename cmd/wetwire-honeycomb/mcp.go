@@ -15,7 +15,6 @@ import (
 	coremcp "github.com/lex00/wetwire-core-go/mcp"
 	"github.com/spf13/cobra"
 
-	"github.com/lex00/wetwire-honeycomb-go/internal/builder"
 	"github.com/lex00/wetwire-honeycomb-go/internal/discovery"
 	"github.com/lex00/wetwire-honeycomb-go/internal/lint"
 	"github.com/lex00/wetwire-honeycomb-go/internal/serialize"
@@ -75,27 +74,28 @@ func mcpRegisterStandardTools(server *coremcp.Server) {
 	})
 
 	// wetwire_build tool
-	server.RegisterToolWithSchema("wetwire_build", "Generate Query JSON from wetwire declarations", mcpHandleBuild, map[string]any{
+	server.RegisterToolWithSchema("wetwire_build", "Generate JSON from all wetwire resources (queries, boards, SLOs, triggers)", mcpHandleBuild, map[string]any{
 		"type": "object",
 		"properties": map[string]any{
 			"package": map[string]any{
 				"type":        "string",
-				"description": "Package path to discover queries from",
+				"description": "Package path to discover resources from",
 			},
 			"format": map[string]any{
 				"type":        "string",
 				"enum":        []string{"json", "pretty"},
 				"description": "Output format (default: pretty)",
 			},
-			"dry_run": map[string]any{
-				"type":        "boolean",
-				"description": "Return content without writing files",
+			"type": map[string]any{
+				"type":        "string",
+				"enum":        []string{"query", "board", "slo", "trigger"},
+				"description": "Build only specific resource type (default: all)",
 			},
 		},
 	})
 
 	// wetwire_lint tool
-	server.RegisterToolWithSchema("wetwire_lint", "Check code quality and style (domain lint rules)", mcpHandleLint, map[string]any{
+	server.RegisterToolWithSchema("wetwire_lint", "Lint all resources (queries, boards, SLOs, triggers) with WHC rules", mcpHandleLint, map[string]any{
 		"type": "object",
 		"properties": map[string]any{
 			"package": map[string]any{
@@ -111,7 +111,7 @@ func mcpRegisterStandardTools(server *coremcp.Server) {
 	})
 
 	// wetwire_list tool
-	server.RegisterToolWithSchema("wetwire_list", "List all discovered queries", mcpHandleList, map[string]any{
+	server.RegisterToolWithSchema("wetwire_list", "List all discovered resources (queries, boards, SLOs, triggers)", mcpHandleList, map[string]any{
 		"type": "object",
 		"properties": map[string]any{
 			"package": map[string]any{
@@ -122,6 +122,11 @@ func mcpRegisterStandardTools(server *coremcp.Server) {
 				"type":        "string",
 				"enum":        []string{"text", "json"},
 				"description": "Output format (default: text)",
+			},
+			"type": map[string]any{
+				"type":        "string",
+				"enum":        []string{"query", "board", "slo", "trigger"},
+				"description": "Filter by resource type (default: all)",
 			},
 		},
 	})
@@ -264,8 +269,8 @@ func mcpHandleLint(_ context.Context, args map[string]any) (string, error) {
 		return mcpJSONResult(result)
 	}
 
-	// Discover queries
-	queries, err := discovery.DiscoverQueries(absPath)
+	// Discover all resources
+	resources, err := discovery.DiscoverAll(absPath)
 	if err != nil {
 		result.Issues = append(result.Issues, MCPLintIssue{
 			Severity: "error",
@@ -275,8 +280,8 @@ func mcpHandleLint(_ context.Context, args map[string]any) (string, error) {
 		return mcpJSONResult(result)
 	}
 
-	// Run lint
-	lintResults := lint.LintQueries(queries)
+	// Run lint on all resources
+	lintResults := lint.LintAll(resources)
 
 	// Convert lint results to our format
 	for _, issue := range lintResults {
@@ -297,6 +302,7 @@ func mcpHandleLint(_ context.Context, args map[string]any) (string, error) {
 func mcpHandleBuild(_ context.Context, args map[string]any) (string, error) {
 	pkg, _ := args["package"].(string)
 	format, _ := args["format"].(string)
+	resourceType, _ := args["type"].(string)
 
 	result := MCPBuildResult{}
 
@@ -316,64 +322,99 @@ func mcpHandleBuild(_ context.Context, args map[string]any) (string, error) {
 		return mcpJSONResult(result)
 	}
 
-	// Build queries
-	b, err := builder.NewBuilder(absPath)
+	// Discover all resources
+	resources, err := discovery.DiscoverAll(absPath)
 	if err != nil {
-		result.Errors = append(result.Errors, fmt.Sprintf("builder error: %v", err))
+		result.Errors = append(result.Errors, fmt.Sprintf("discovery failed: %v", err))
 		return mcpJSONResult(result)
 	}
 
-	buildResult, err := b.Build()
-	if err != nil {
-		result.Errors = append(result.Errors, fmt.Sprintf("build failed: %v", err))
+	if resources.TotalCount() == 0 {
+		result.Errors = append(result.Errors, "no resources found")
 		return mcpJSONResult(result)
 	}
 
-	if buildResult.QueryCount() == 0 {
-		result.Errors = append(result.Errors, "no queries found")
-		return mcpJSONResult(result)
-	}
+	// Build output structure
+	outputData := make(map[string]json.RawMessage)
 
 	// Serialize queries
-	queries := buildResult.Queries()
-	var jsonData []byte
-
-	if len(queries) == 1 {
-		q := discoveredToQuery(queries[0])
-		if format == "pretty" {
-			jsonData, err = serialize.ToJSONPretty(q)
-		} else {
-			jsonData, err = serialize.ToJSON(q)
-		}
-	} else {
-		// Multiple queries - wrap in object
+	if (resourceType == "" || resourceType == "query" || resourceType == "queries") && len(resources.Queries) > 0 {
 		queryMap := make(map[string]json.RawMessage)
-		for _, dq := range queries {
+		for _, dq := range resources.Queries {
 			q := discoveredToQuery(dq)
-			var data []byte
-			data, err = serialize.ToJSON(q)
-			if err != nil {
-				break
+			data, serr := serialize.ToJSON(q)
+			if serr != nil {
+				result.Errors = append(result.Errors, fmt.Sprintf("query serialization failed: %v", serr))
+				return mcpJSONResult(result)
 			}
 			queryMap[dq.Name] = data
+			result.Queries = append(result.Queries, dq.Name)
 		}
-		if err == nil {
-			if format == "pretty" {
-				jsonData, err = json.MarshalIndent(queryMap, "", "  ")
-			} else {
-				jsonData, err = json.Marshal(queryMap)
-			}
-		}
+		data, _ := json.Marshal(queryMap)
+		outputData["queries"] = data
 	}
 
+	// Serialize boards
+	if (resourceType == "" || resourceType == "board" || resourceType == "boards") && len(resources.Boards) > 0 {
+		boardMap := make(map[string]json.RawMessage)
+		for _, db := range resources.Boards {
+			b := discoveredToBoard(db)
+			data, serr := serialize.BoardToJSON(b)
+			if serr != nil {
+				result.Errors = append(result.Errors, fmt.Sprintf("board serialization failed: %v", serr))
+				return mcpJSONResult(result)
+			}
+			boardMap[db.Name] = data
+			result.Boards = append(result.Boards, db.Name)
+		}
+		data, _ := json.Marshal(boardMap)
+		outputData["boards"] = data
+	}
+
+	// Serialize SLOs
+	if (resourceType == "" || resourceType == "slo" || resourceType == "slos") && len(resources.SLOs) > 0 {
+		sloMap := make(map[string]json.RawMessage)
+		for _, ds := range resources.SLOs {
+			s := discoveredToSLO(ds)
+			data, serr := serialize.SLOToJSON(s)
+			if serr != nil {
+				result.Errors = append(result.Errors, fmt.Sprintf("SLO serialization failed: %v", serr))
+				return mcpJSONResult(result)
+			}
+			sloMap[ds.Name] = data
+			result.SLOs = append(result.SLOs, ds.Name)
+		}
+		data, _ := json.Marshal(sloMap)
+		outputData["slos"] = data
+	}
+
+	// Serialize triggers
+	if (resourceType == "" || resourceType == "trigger" || resourceType == "triggers") && len(resources.Triggers) > 0 {
+		triggerMap := make(map[string]json.RawMessage)
+		for _, dt := range resources.Triggers {
+			t := discoveredToTrigger(dt)
+			data, serr := serialize.TriggerToJSON(t)
+			if serr != nil {
+				result.Errors = append(result.Errors, fmt.Sprintf("trigger serialization failed: %v", serr))
+				return mcpJSONResult(result)
+			}
+			triggerMap[dt.Name] = data
+			result.Triggers = append(result.Triggers, dt.Name)
+		}
+		data, _ := json.Marshal(triggerMap)
+		outputData["triggers"] = data
+	}
+
+	// Final JSON output
+	var jsonData []byte
+	if format == "pretty" {
+		jsonData, err = json.MarshalIndent(outputData, "", "  ")
+	} else {
+		jsonData, err = json.Marshal(outputData)
+	}
 	if err != nil {
 		result.Errors = append(result.Errors, fmt.Sprintf("serialization failed: %v", err))
 		return mcpJSONResult(result)
-	}
-
-	// Build success result
-	for _, q := range queries {
-		result.Queries = append(result.Queries, q.Name)
 	}
 
 	result.Success = true
@@ -385,6 +426,7 @@ func mcpHandleBuild(_ context.Context, args map[string]any) (string, error) {
 func mcpHandleList(_ context.Context, args map[string]any) (string, error) {
 	pkg, _ := args["package"].(string)
 	format, _ := args["format"].(string)
+	resourceType, _ := args["type"].(string)
 
 	result := MCPListResult{}
 
@@ -393,32 +435,115 @@ func mcpHandleList(_ context.Context, args map[string]any) (string, error) {
 		return mcpJSONResult(result)
 	}
 
-	// Discover queries
-	queries, err := discovery.DiscoverQueries(pkg)
+	// Discover all resources
+	resources, err := discovery.DiscoverAll(pkg)
 	if err != nil {
 		result.Message = fmt.Sprintf("discovery failed: %v", err)
 		return mcpJSONResult(result)
 	}
 
 	// Build query list
-	for _, q := range queries {
-		result.Queries = append(result.Queries, MCPQueryInfo{
-			Name:    q.Name,
-			File:    q.File,
-			Line:    q.Line,
-			Dataset: q.Dataset,
-		})
+	if resourceType == "" || resourceType == "query" || resourceType == "queries" {
+		for _, q := range resources.Queries {
+			result.Queries = append(result.Queries, MCPQueryInfo{
+				Name:    q.Name,
+				File:    q.File,
+				Line:    q.Line,
+				Dataset: q.Dataset,
+			})
+		}
+	}
+
+	// Build board list
+	if resourceType == "" || resourceType == "board" || resourceType == "boards" {
+		for _, b := range resources.Boards {
+			result.Boards = append(result.Boards, MCPBoardInfo{
+				Name:       b.Name,
+				File:       b.File,
+				Line:       b.Line,
+				BoardName:  b.BoardName,
+				PanelCount: b.PanelCount,
+				QueryRefs:  b.QueryRefs,
+				SLORefs:    b.SLORefs,
+			})
+		}
+	}
+
+	// Build SLO list
+	if resourceType == "" || resourceType == "slo" || resourceType == "slos" {
+		for _, s := range resources.SLOs {
+			result.SLOs = append(result.SLOs, MCPSLOInfo{
+				Name:             s.Name,
+				File:             s.File,
+				Line:             s.Line,
+				SLOName:          s.SLOName,
+				Dataset:          s.Dataset,
+				TargetPercentage: s.TargetPercentage,
+				BurnAlertCount:   s.BurnAlertCount,
+			})
+		}
+	}
+
+	// Build trigger list
+	if resourceType == "" || resourceType == "trigger" || resourceType == "triggers" {
+		for _, t := range resources.Triggers {
+			result.Triggers = append(result.Triggers, MCPTriggerInfo{
+				Name:             t.Name,
+				File:             t.File,
+				Line:             t.Line,
+				TriggerName:      t.TriggerName,
+				Dataset:          t.Dataset,
+				FrequencySeconds: t.FrequencySeconds,
+				RecipientCount:   t.RecipientCount,
+				Disabled:         t.Disabled,
+			})
+		}
 	}
 
 	result.Success = true
-	result.Count = len(queries)
+	result.Count = resources.TotalCount()
 
 	if format == "text" {
 		var sb strings.Builder
-		sb.WriteString(fmt.Sprintf("Found %d queries:\n", len(queries)))
-		for _, q := range queries {
-			sb.WriteString(fmt.Sprintf("  %s (%s:%d) - dataset: %s\n",
-				q.Name, filepath.Base(q.File), q.Line, q.Dataset))
+		sb.WriteString(fmt.Sprintf("Found %d resources:\n\n", result.Count))
+
+		if len(result.Queries) > 0 {
+			sb.WriteString(fmt.Sprintf("Queries (%d):\n", len(result.Queries)))
+			for _, q := range result.Queries {
+				sb.WriteString(fmt.Sprintf("  %s (%s:%d) - dataset: %s\n",
+					q.Name, filepath.Base(q.File), q.Line, q.Dataset))
+			}
+			sb.WriteString("\n")
+		}
+
+		if len(result.Boards) > 0 {
+			sb.WriteString(fmt.Sprintf("Boards (%d):\n", len(result.Boards)))
+			for _, b := range result.Boards {
+				sb.WriteString(fmt.Sprintf("  %s (%s:%d) - %d panels\n",
+					b.Name, filepath.Base(b.File), b.Line, b.PanelCount))
+			}
+			sb.WriteString("\n")
+		}
+
+		if len(result.SLOs) > 0 {
+			sb.WriteString(fmt.Sprintf("SLOs (%d):\n", len(result.SLOs)))
+			for _, s := range result.SLOs {
+				sb.WriteString(fmt.Sprintf("  %s (%s:%d) - %.1f%%\n",
+					s.Name, filepath.Base(s.File), s.Line, s.TargetPercentage))
+			}
+			sb.WriteString("\n")
+		}
+
+		if len(result.Triggers) > 0 {
+			sb.WriteString(fmt.Sprintf("Triggers (%d):\n", len(result.Triggers)))
+			for _, t := range result.Triggers {
+				status := "enabled"
+				if t.Disabled {
+					status = "disabled"
+				}
+				sb.WriteString(fmt.Sprintf("  %s (%s:%d) - %s\n",
+					t.Name, filepath.Base(t.File), t.Line, status))
+			}
 		}
 		result.Message = sb.String()
 	}
@@ -442,57 +567,142 @@ func mcpHandleGraph(_ context.Context, args map[string]any) (string, error) {
 		format = "text"
 	}
 
-	// Discover queries
-	queries, err := discovery.DiscoverQueries(pkg)
+	// Discover all resources
+	resources, err := discovery.DiscoverAll(pkg)
 	if err != nil {
 		result.Message = fmt.Sprintf("discovery failed: %v", err)
 		return mcpJSONResult(result)
 	}
 
-	if len(queries) == 0 {
-		result.Message = "no queries found"
+	if resources.TotalCount() == 0 {
+		result.Message = "no resources found"
 		return mcpJSONResult(result)
 	}
 
-	// Group by dataset
-	byDataset := make(map[string][]discovery.DiscoveredQuery)
-	for _, q := range queries {
-		byDataset[q.Dataset] = append(byDataset[q.Dataset], q)
-	}
-
 	if format == "dot" {
-		// DOT format for graphviz
+		// DOT format for graphviz with full dependency chain
 		var sb strings.Builder
-		sb.WriteString("digraph queries {\n")
+		sb.WriteString("digraph resources {\n")
 		sb.WriteString("  rankdir=LR;\n")
 		sb.WriteString("  node [shape=box];\n\n")
 
-		for dataset, dqs := range byDataset {
-			sb.WriteString(fmt.Sprintf("  subgraph cluster_%s {\n", mcpSanitizeID(dataset)))
-			sb.WriteString(fmt.Sprintf("    label=%q;\n", dataset))
-			for _, q := range dqs {
-				sb.WriteString(fmt.Sprintf("    %s [label=%q];\n", mcpSanitizeID(q.Name), q.Name))
+		// Queries
+		if len(resources.Queries) > 0 {
+			sb.WriteString("  subgraph cluster_queries {\n")
+			sb.WriteString("    label=\"Queries\";\n")
+			sb.WriteString("    style=filled;\n")
+			sb.WriteString("    fillcolor=\"#e3f2fd\";\n")
+			for _, q := range resources.Queries {
+				sb.WriteString(fmt.Sprintf("    query_%s [label=%q];\n", mcpSanitizeID(q.Name), q.Name))
 			}
-			sb.WriteString("  }\n")
+			sb.WriteString("  }\n\n")
+		}
+
+		// SLOs
+		if len(resources.SLOs) > 0 {
+			sb.WriteString("  subgraph cluster_slos {\n")
+			sb.WriteString("    label=\"SLOs\";\n")
+			sb.WriteString("    style=filled;\n")
+			sb.WriteString("    fillcolor=\"#e8f5e9\";\n")
+			for _, s := range resources.SLOs {
+				sb.WriteString(fmt.Sprintf("    slo_%s [label=%q];\n", mcpSanitizeID(s.Name), s.SLOName))
+			}
+			sb.WriteString("  }\n\n")
+		}
+
+		// Triggers
+		if len(resources.Triggers) > 0 {
+			sb.WriteString("  subgraph cluster_triggers {\n")
+			sb.WriteString("    label=\"Triggers\";\n")
+			sb.WriteString("    style=filled;\n")
+			sb.WriteString("    fillcolor=\"#fff3e0\";\n")
+			for _, t := range resources.Triggers {
+				sb.WriteString(fmt.Sprintf("    trigger_%s [label=%q];\n", mcpSanitizeID(t.Name), t.TriggerName))
+			}
+			sb.WriteString("  }\n\n")
+		}
+
+		// Boards
+		if len(resources.Boards) > 0 {
+			sb.WriteString("  subgraph cluster_boards {\n")
+			sb.WriteString("    label=\"Boards\";\n")
+			sb.WriteString("    style=filled;\n")
+			sb.WriteString("    fillcolor=\"#fce4ec\";\n")
+			for _, b := range resources.Boards {
+				sb.WriteString(fmt.Sprintf("    board_%s [label=%q];\n", mcpSanitizeID(b.Name), b.BoardName))
+			}
+			sb.WriteString("  }\n\n")
+		}
+
+		// Edges: Board -> Query refs
+		for _, b := range resources.Boards {
+			for _, qref := range b.QueryRefs {
+				sb.WriteString(fmt.Sprintf("  board_%s -> query_%s;\n", mcpSanitizeID(b.Name), mcpSanitizeID(qref)))
+			}
+			for _, sref := range b.SLORefs {
+				sb.WriteString(fmt.Sprintf("  board_%s -> slo_%s;\n", mcpSanitizeID(b.Name), mcpSanitizeID(sref)))
+			}
 		}
 
 		sb.WriteString("}\n")
 		result.Graph = sb.String()
 	} else {
-		// Text format
+		// Text format with dependency chain
 		var sb strings.Builder
-		sb.WriteString(fmt.Sprintf("Query Graph (%d queries, %d datasets)\n\n", len(queries), len(byDataset)))
+		sb.WriteString(fmt.Sprintf("Resource Graph (%d total)\n", resources.TotalCount()))
+		sb.WriteString(fmt.Sprintf("  Queries: %d, SLOs: %d, Triggers: %d, Boards: %d\n\n",
+			len(resources.Queries), len(resources.SLOs), len(resources.Triggers), len(resources.Boards)))
+
+		// Group queries by dataset
+		byDataset := make(map[string][]discovery.DiscoveredQuery)
+		for _, q := range resources.Queries {
+			byDataset[q.Dataset] = append(byDataset[q.Dataset], q)
+		}
 
 		for dataset, dqs := range byDataset {
 			sb.WriteString(fmt.Sprintf("Dataset: %s\n", dataset))
 			for _, q := range dqs {
-				sb.WriteString(fmt.Sprintf("  +-- %s (%s:%d)\n", q.Name, filepath.Base(q.File), q.Line))
-				if len(q.Breakdowns) > 0 {
-					sb.WriteString(fmt.Sprintf("  |   +-- breakdowns: %v\n", q.Breakdowns))
-				}
+				sb.WriteString(fmt.Sprintf("  +-- Query: %s\n", q.Name))
 			}
 			sb.WriteString("\n")
 		}
+
+		// SLOs
+		if len(resources.SLOs) > 0 {
+			sb.WriteString("SLOs:\n")
+			for _, s := range resources.SLOs {
+				sb.WriteString(fmt.Sprintf("  +-- %s (%.1f%%, %d burn alerts)\n", s.SLOName, s.TargetPercentage, s.BurnAlertCount))
+			}
+			sb.WriteString("\n")
+		}
+
+		// Triggers
+		if len(resources.Triggers) > 0 {
+			sb.WriteString("Triggers:\n")
+			for _, t := range resources.Triggers {
+				status := "enabled"
+				if t.Disabled {
+					status = "disabled"
+				}
+				sb.WriteString(fmt.Sprintf("  +-- %s (%s)\n", t.TriggerName, status))
+			}
+			sb.WriteString("\n")
+		}
+
+		// Boards with dependencies
+		if len(resources.Boards) > 0 {
+			sb.WriteString("Boards:\n")
+			for _, b := range resources.Boards {
+				sb.WriteString(fmt.Sprintf("  +-- %s (%d panels)\n", b.BoardName, b.PanelCount))
+				if len(b.QueryRefs) > 0 {
+					sb.WriteString(fmt.Sprintf("      +-- queries: %v\n", b.QueryRefs))
+				}
+				if len(b.SLORefs) > 0 {
+					sb.WriteString(fmt.Sprintf("      +-- slos: %v\n", b.SLORefs))
+				}
+			}
+		}
+
 		result.Graph = sb.String()
 	}
 
@@ -528,18 +738,24 @@ type MCPLintIssue struct {
 
 // MCPBuildResult is the result of the wetwire_build tool.
 type MCPBuildResult struct {
-	Success bool     `json:"success"`
-	Output  string   `json:"output,omitempty"`
-	Queries []string `json:"queries,omitempty"`
-	Errors  []string `json:"errors,omitempty"`
+	Success  bool     `json:"success"`
+	Output   string   `json:"output,omitempty"`
+	Queries  []string `json:"queries,omitempty"`
+	Boards   []string `json:"boards,omitempty"`
+	SLOs     []string `json:"slos,omitempty"`
+	Triggers []string `json:"triggers,omitempty"`
+	Errors   []string `json:"errors,omitempty"`
 }
 
 // MCPListResult is the result of the wetwire_list tool.
 type MCPListResult struct {
-	Success bool           `json:"success"`
-	Count   int            `json:"count"`
-	Message string         `json:"message,omitempty"`
-	Queries []MCPQueryInfo `json:"queries,omitempty"`
+	Success  bool              `json:"success"`
+	Count    int               `json:"count"`
+	Message  string            `json:"message,omitempty"`
+	Queries  []MCPQueryInfo    `json:"queries,omitempty"`
+	Boards   []MCPBoardInfo    `json:"boards,omitempty"`
+	SLOs     []MCPSLOInfo      `json:"slos,omitempty"`
+	Triggers []MCPTriggerInfo  `json:"triggers,omitempty"`
 }
 
 // MCPQueryInfo represents query metadata.
@@ -548,6 +764,40 @@ type MCPQueryInfo struct {
 	File    string `json:"file"`
 	Line    int    `json:"line"`
 	Dataset string `json:"dataset"`
+}
+
+// MCPBoardInfo represents board metadata.
+type MCPBoardInfo struct {
+	Name       string   `json:"name"`
+	File       string   `json:"file"`
+	Line       int      `json:"line"`
+	BoardName  string   `json:"board_name,omitempty"`
+	PanelCount int      `json:"panel_count"`
+	QueryRefs  []string `json:"query_refs,omitempty"`
+	SLORefs    []string `json:"slo_refs,omitempty"`
+}
+
+// MCPSLOInfo represents SLO metadata.
+type MCPSLOInfo struct {
+	Name             string  `json:"name"`
+	File             string  `json:"file"`
+	Line             int     `json:"line"`
+	SLOName          string  `json:"slo_name,omitempty"`
+	Dataset          string  `json:"dataset,omitempty"`
+	TargetPercentage float64 `json:"target_percentage,omitempty"`
+	BurnAlertCount   int     `json:"burn_alert_count"`
+}
+
+// MCPTriggerInfo represents trigger metadata.
+type MCPTriggerInfo struct {
+	Name             string `json:"name"`
+	File             string `json:"file"`
+	Line             int    `json:"line"`
+	TriggerName      string `json:"trigger_name,omitempty"`
+	Dataset          string `json:"dataset,omitempty"`
+	FrequencySeconds int    `json:"frequency_seconds,omitempty"`
+	RecipientCount   int    `json:"recipient_count"`
+	Disabled         bool   `json:"disabled"`
 }
 
 // MCPGraphResult is the result of the wetwire_graph tool.
