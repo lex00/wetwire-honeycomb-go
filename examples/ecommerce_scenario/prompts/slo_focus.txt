@@ -1,0 +1,103 @@
+# E-commerce Checkout SLOs with Burn Alerts
+
+Create a comprehensive SLO monitoring setup for e-commerce checkout flow using wetwire-honeycomb-go, with multi-tiered burn rate alerting.
+
+## Requirements
+
+Create these SLOs with burn alerts in `slos.go`:
+
+### 1. CheckoutAvailability
+
+Track checkout service availability with 3-tier burn alerts:
+- Time Period: 30 days
+- Target: 99.9% availability
+- Dataset: otel-demo
+- Metric: Ratio of successful requests to total requests
+- Success criteria: http.status_code < 500
+- Filter: service.name in [checkoutservice, cartservice, paymentservice, frauddetectionservice]
+
+**Burn Rate Alerts:**
+- **Critical (1h)**: 14.4x burn rate (exhausts budget in 2 days)
+  - Check: 99.0% availability over last 1 hour
+  - Severity: Critical
+- **High (6h)**: 6x burn rate (exhausts budget in 5 days)
+  - Check: 99.5% availability over last 6 hours
+  - Severity: High
+- **Medium (24h)**: 3x burn rate (exhausts budget in 10 days)
+  - Check: 99.7% availability over last 24 hours
+  - Severity: Medium
+
+### 2. CheckoutLatency
+
+Track checkout latency performance:
+- Time Period: 30 days
+- Target: 95% of requests complete under 2000ms
+- Dataset: otel-demo
+- Metric: P95(duration_ms)
+- Threshold: 2000ms
+- Filter: service.name in [checkoutservice, cartservice, paymentservice]
+- Breakdown: service.name
+
+**Burn Rate Alerts:**
+- **Critical (1h)**: P95 > 2500ms (25% over target)
+- **High (6h)**: P95 > 2200ms (10% over target)
+
+### 3. PaymentSuccess
+
+Track payment processing success rate:
+- Time Period: 30 days
+- Target: 99.95% of payments succeed
+- Dataset: otel-demo
+- Metric: Ratio of successful payments to total attempts
+- Success criteria: payment.status = "success"
+- Filter: service.name = "paymentservice"
+
+**Burn Rate Alerts:**
+- **Critical (1h)**: 20x burn rate (< 99.75% success)
+- **High (6h)**: 10x burn rate (< 99.85% success)
+
+## Implementation Notes
+
+- Package name: `ecommerce_scenario`
+- Import: `github.com/lex00/wetwire-honeycomb-go/query`
+- Use top-level var declarations for all SLOs
+- Each SLO should be properly typed using query.SLO struct
+- Burn alerts should reference their parent SLO
+- Use typed functions:
+  - Time ranges: query.Hours(), query.Days()
+  - Filters: query.LT(), query.Exists(), query.Equals()
+  - Calculations: query.Count(), query.P95()
+
+## SLO Targets Reference
+
+From service configuration:
+- Availability: 99.9%
+- Latency P95: 2000ms
+- Payment success: 99.95%
+
+## Burn Rate Math
+
+For 99.9% SLO (0.1% error budget over 30 days):
+- 1x burn = 0.1% errors
+- 14.4x burn = 1.44% errors (99.0% availability)
+- 6x burn = 0.6% errors (99.5% availability)
+- 3x burn = 0.3% errors (99.7% availability)
+
+For 99.95% SLO (0.05% error budget):
+- 20x burn = 1.0% errors (99.75% availability)
+- 10x burn = 0.5% errors (99.85% availability)
+
+## File Structure
+
+```
+examples/ecommerce_scenario/
+└── slos.go    # All 3 SLOs with burn alerts
+```
+
+## Expected Output
+
+These SLOs should compile cleanly and generate valid Honeycomb SLO definitions that:
+- Track critical checkout flow metrics
+- Provide multi-tiered alerting based on error budget burn rate
+- Allow early detection of SLO violations before budget exhaustion
+- Generate actionable alerts with appropriate severity levels
