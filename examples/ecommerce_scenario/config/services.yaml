@@ -1,0 +1,11 @@
+checkout_flow:
+  dataset: otel-demo
+  services:
+    - checkoutservice
+    - cartservice
+    - paymentservice
+    - frauddetectionservice
+  slo_targets:
+    availability: 99.9%
+    latency_p95: 2000ms
+    payment_success: 99.95%
