@@ -1,0 +1,25 @@
+digraph queries {
+  rankdir=LR;
+  node [shape=box];
+
+  subgraph cluster_otel_demo {
+    label="otel-demo";
+    CheckoutFlowLatency [label="CheckoutFlowLatency"];
+    ErrorRateByService [label="ErrorRateByService"];
+    RequestThroughput [label="RequestThroughput"];
+    SLOBurnRate [label="SLOBurnRate"];
+    ErrorRateByService [label="ErrorRateByService"];
+    CheckoutFunnel [label="CheckoutFunnel"];
+    CheckoutFlowLatency [label="CheckoutFlowLatency"];
+    PaymentFraudCorrelation [label="PaymentFraudCorrelation"];
+  }
+  subgraph cluster_ecommerce_production {
+    label="ecommerce-production";
+    CheckoutAvailability [label="CheckoutAvailability"];
+    CheckoutAvailability [label="CheckoutAvailability"];
+    CheckoutLatency [label="CheckoutLatency"];
+    CheckoutLatency [label="CheckoutLatency"];
+    PaymentSuccess [label="PaymentSuccess"];
+    PaymentSuccess [label="PaymentSuccess"];
+  }
+}

@@ -96,11 +96,62 @@ checkout_flow:
     payment_success: 99.95%
 ```
 
+## Resource Dependency Graph
+
+The following diagram shows how resources depend on each other in this scenario:
+
+```mermaid
+graph TD
+    subgraph Queries
+        Q1[CheckoutFlowLatency]
+        Q2[PaymentFraudCorrelation]
+        Q3[ErrorRateByService]
+        Q4[CheckoutFunnel]
+    end
+
+    subgraph SLOs
+        S1[CheckoutAvailability]
+        S2[CheckoutLatency]
+        S3[PaymentSuccess]
+    end
+
+    subgraph Triggers
+        T1[HighLatencyAlert]
+        T2[ErrorRateAlert]
+    end
+
+    subgraph Boards
+        B1[CheckoutDashboard]
+    end
+
+    Q1 --> S1
+    Q1 --> S2
+    Q2 --> S3
+    Q1 --> T1
+    S2 --> T1
+    Q3 --> T2
+    Q1 --> B1
+    Q3 --> B1
+    Q4 --> B1
+    S1 --> B1
+```
+
+Generate the graph locally:
+
+```bash
+# DOT format (Graphviz)
+wetwire-honeycomb graph ./examples/ecommerce_scenario/expected --format dot
+
+# Text format
+wetwire-honeycomb graph ./examples/ecommerce_scenario/expected --format text
+```
+
 ## File Structure
 
 ```
 ecommerce_scenario/
 ├── README.md              # This file
+├── scenario.yaml          # Scenario configuration for /scenario skill
 ├── config/                # Service and dataset configuration
 │   ├── services.yaml      # Service definitions and SLO targets
 │   ├── config_test.go     # Validation tests for configuration
@@ -111,6 +162,9 @@ ecommerce_scenario/
 ├── expected/              # Reference implementations
 │   └── queries/           # Expected query implementations
 │       └── queries_test.go   # Validation tests for expected queries
+├── docs/                  # Generated documentation
+│   ├── graph.dot          # Graphviz DOT format
+│   └── graph.mermaid      # Mermaid diagram source
 └── results/               # Generated outputs (created during test runs)
     ├── beginner/          # Beginner persona outputs
     ├── intermediate/      # Intermediate persona outputs
