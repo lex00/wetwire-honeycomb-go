@@ -11,8 +11,9 @@ import (
 	"syscall"
 
 	"github.com/lex00/wetwire-core-go/agent/agents"
-	"github.com/lex00/wetwire-core-go/agent/orchestrator"
 	"github.com/lex00/wetwire-core-go/agent/results"
+	coremcp "github.com/lex00/wetwire-core-go/mcp"
+	anthropicprovider "github.com/lex00/wetwire-core-go/providers/anthropic"
 	"github.com/lex00/wetwire-honeycomb-go/internal/agent"
 	"github.com/lex00/wetwire-honeycomb-go/internal/kiro"
 	"github.com/spf13/cobra"
@@ -60,7 +61,7 @@ Example:
 }
 
 // runDesign starts an AI-assisted design session using the specified provider.
-// It creates a runner agent that generates code, runs the linter, and fixes issues.
+// It creates a unified agent with MCP tools for code generation.
 func runDesign(prompt, outputDir string, maxLintCycles int, stream bool, provider string) error {
 	// Handle kiro provider
 	if provider == "kiro" {
@@ -85,9 +86,9 @@ func runDesign(prompt, outputDir string, maxLintCycles int, stream bool, provide
 
 	// Create human developer (reads from stdin)
 	reader := bufio.NewReader(os.Stdin)
-	developer := orchestrator.NewHumanDeveloper(func() (string, error) {
-		return reader.ReadString('\n')
-	})
+	humanDeveloper := &humanDeveloperAdapter{
+		reader: reader,
+	}
 
 	// Create stream handler if streaming enabled
 	var streamHandler agents.StreamHandler
@@ -97,17 +98,32 @@ func runDesign(prompt, outputDir string, maxLintCycles int, stream bool, provide
 		}
 	}
 
-	// Create runner agent with Honeycomb domain
-	runner, err := agents.NewRunnerAgent(agents.RunnerConfig{
-		WorkDir:       outputDir,
-		MaxLintCycles: maxLintCycles,
+	// Create MCP server with Honeycomb tools
+	mcpServer := coremcp.NewServer(coremcp.Config{
+		Name:    "wetwire-honeycomb-design",
+		Version: "1.0.0",
+	})
+
+	// Register standard wetwire tools for design mode
+	mcpRegisterDesignTools(mcpServer, outputDir)
+
+	// Create Anthropic provider
+	anthropicProvider, err := anthropicprovider.New(anthropicprovider.Config{})
+	if err != nil {
+		return fmt.Errorf("creating provider: %w", err)
+	}
+
+	// Create unified agent with MCP server
+	designAgent, err := agents.NewAgent(agents.AgentConfig{
+		Provider:      anthropicProvider,
+		MCPServer:     agents.NewMCPServerAdapter(mcpServer),
 		Session:       session,
-		Developer:     developer,
+		Developer:     humanDeveloper,
 		StreamHandler: streamHandler,
-		Domain:        agent.HoneycombDomain(),
+		SystemPrompt:  agent.HoneycombSystemPrompt(),
 	})
 	if err != nil {
-		return fmt.Errorf("creating runner: %w", err)
+		return fmt.Errorf("creating agent: %w", err)
 	}
 
 	fmt.Println("Starting AI-assisted design session...")
@@ -116,20 +132,44 @@ func runDesign(prompt, outputDir string, maxLintCycles int, stream bool, provide
 	fmt.Println()
 
 	// Run the agent
-	if err := runner.Run(ctx, prompt); err != nil {
+	if err := designAgent.Run(ctx, prompt); err != nil {
 		return fmt.Errorf("design session failed: %w", err)
 	}
 
-	// Print summary
-	fmt.Println("\n--- Session Summary ---")
-	fmt.Printf("Generated files: %d\n", len(runner.GetGeneratedFiles()))
-	for _, f := range runner.GetGeneratedFiles() {
-		fmt.Printf("  - %s\n", f)
-	}
-	fmt.Printf("Lint cycles: %d\n", runner.GetLintCycles())
-	fmt.Printf("Lint passed: %v\n", runner.LintPassed())
+	fmt.Println("\n--- Session Complete ---")
 
 	return nil
+}
+
+// humanDeveloperAdapter adapts orchestrator.HumanDeveloper to agents.Developer interface.
+type humanDeveloperAdapter struct {
+	reader *bufio.Reader
+}
+
+// Respond implements agents.Developer interface.
+func (h *humanDeveloperAdapter) Respond(ctx context.Context, message string) (string, error) {
+	fmt.Printf("\n%s\n> ", message)
+	answer, err := h.reader.ReadString('\n')
+	if err != nil {
+		return "", err
+	}
+	return strings.TrimSpace(answer), nil
+}
+
+// mcpRegisterDesignTools registers tools needed for design mode.
+// These are the same tools as MCP server plus file operations.
+func mcpRegisterDesignTools(server *coremcp.Server, workDir string) {
+	// Register standard Honeycomb tools
+	mcpRegisterStandardTools(server)
+
+	// Add file write/read tools for design mode
+	server.RegisterToolWithSchema("wetwire_write", "Write content to a file", func(ctx context.Context, args map[string]any) (string, error) {
+		return coremcp.DefaultFileWriteHandler(ctx, args)
+	}, coremcp.WriteSchema)
+
+	server.RegisterToolWithSchema("wetwire_read", "Read content from a file", func(ctx context.Context, args map[string]any) (string, error) {
+		return coremcp.DefaultFileReadHandler(ctx, args)
+	}, coremcp.ReadSchema)
 }
 
 // runDesignKiro starts a Kiro CLI chat session for interactive design.

@@ -3,7 +3,7 @@ module github.com/lex00/wetwire-honeycomb-go
 go 1.23.0
 
 require (
-	github.com/lex00/wetwire-core-go v1.5.4
+	github.com/lex00/wetwire-core-go v1.6.0
 	github.com/spf13/cobra v1.10.2
 	github.com/stretchr/testify v1.11.1
 )
@@ -20,3 +20,5 @@ require (
 	github.com/tidwall/sjson v1.2.5 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 )
+
+replace github.com/lex00/wetwire-core-go => /Users/alex/Documents/checkouts/wetwire-core-go
