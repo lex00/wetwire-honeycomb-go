@@ -34,7 +34,13 @@ import (
 	"github.com/spf13/cobra"
 )
 
+// Version information set via ldflags
+var version = "dev"
+
 func main() {
+	// Set domain version from ldflags
+	domain.Version = version
+
 	// Use domain interface for auto-generated commands
 	rootCmd := domain.CreateRootCommand(&domain.HoneycombDomain{})
 
