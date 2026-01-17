@@ -1,24 +1,18 @@
-# Task API Observability
+Create Honeycomb observability for Task API:
 
-Dataset: `tasks-api` (CRUD API for /tasks endpoints)
+**Queries:**
+- RequestLatency: P99/P95/P50 by route and method
+- ErrorRate: errors (status >= 400) by route and status code
+- SlowRequests: requests over 500ms
+- RequestThroughput: volume with 5-minute granularity
 
-## Create these files:
+**SLOs:**
+- Availability: 99.9% (status < 500)
+- Latency: 95% under 500ms
 
-**expected/queries/queries.go:**
-- RequestLatency: P99/P95/P50 by route/method
-- ErrorRate: COUNT where status>=400, by route/status_code
-- SlowRequests: COUNT/AVG/MAX where duration>500ms
-- RequestThroughput: COUNT with 5m granularity
+**Triggers:**
+- HighErrorRate: alert on elevated errors
+- HighLatency: alert when P99 exceeds 1 second
 
-**expected/slos/slos.go:**
-- Availability: 99.9% (status<500), 30-day window
-- Latency: 95% under 500ms, 7-day window
-
-**expected/triggers/triggers.go:**
-- HighErrorRate: >1% errors, 2m frequency
-- HighLatency: P99>1000ms, 2m frequency
-
-**expected/boards/dashboard.go:**
-- TasksAPIDashboard: 2x2 grid with all 4 queries
-
-Use wetwire-honeycomb-go typed functions.
+**Board:**
+- TasksAPIDashboard: 2x2 grid with all queries

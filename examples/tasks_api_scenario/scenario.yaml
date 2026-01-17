@@ -2,6 +2,7 @@ name: tasks_api_scenario
 description: Generate Honeycomb observability resources for a Task API service
 
 model: sonnet
+timeout: 120s
 
 prompts:
   default: prompt.md
@@ -9,8 +10,6 @@ prompts:
     beginner: prompts/beginner.md
     intermediate: prompts/intermediate.md
     expert: prompts/expert.md
-    terse: prompts/terse.md
-    verbose: prompts/verbose.md
 
 domains:
   - name: honeycomb

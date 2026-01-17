@@ -273,6 +273,33 @@ Generated JSON can be used with Honeycomb Query API (user's responsibility).
 go test -v ./...
 ```
 
+## Running Scenarios
+
+**IMPORTANT:** Scenarios use the Claude CLI, NOT the Anthropic API. No `ANTHROPIC_API_KEY` needed.
+
+Scenarios are run using `wetwire-core-go`'s scenario runner, which invokes `claude` CLI directly:
+
+```bash
+# Clone wetwire-core-go if needed
+# Then from that directory:
+go run ./cmd/run_scenario /path/to/wetwire-honeycomb-go/examples/tasks_api_scenario [persona] --verbose
+
+# Examples:
+go run ./cmd/run_scenario ./examples/tasks_api_scenario beginner --verbose
+go run ./cmd/run_scenario ./examples/tasks_api_scenario intermediate --verbose
+go run ./cmd/run_scenario ./examples/tasks_api_scenario expert --verbose
+go run ./cmd/run_scenario ./examples/tasks_api_scenario --all --verbose
+```
+
+The scenario runner:
+1. Reads `scenario.yaml` for config (model, timeout, validation rules)
+2. Reads `system_prompt.md` for domain knowledge
+3. Reads persona-specific prompts from `prompts/{persona}.md`
+4. Invokes Claude CLI to generate output
+5. Scores and validates results
+
+Do NOT use `wetwire-honeycomb test` for scenarios - that command is for ad-hoc testing with the Anthropic API.
+
 ## Build Commands
 
 ```bash
@@ -292,6 +319,8 @@ go install github.com/lex00/wetwire-honeycomb-go/cmd/wetwire-honeycomb@latest
 | `internal/codegen/` | Query JSON generation |
 | `internal/lint/` | Lint rule implementations |
 | `internal/query/` | Query type definitions |
+| `internal/agent/domain.go` | AI system prompt for scenarios |
+| `examples/tasks_api_scenario/` | Example scenario (run via wetwire-core-go) |
 | `README.md` | Quick start guide |
 | `docs/CLI.md` | Complete command reference |
 | `docs/FAQ.md` | Common questions |
