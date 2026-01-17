@@ -33,7 +33,7 @@ func TestLintQueries_WHC020_InlineCalculationDefinition_TooMany(t *testing.T) {
 	}
 
 	result := findResult(results, "WHC020")
-	if result.Severity != "warning" {
+	if result.Severity != SeverityWarning {
 		t.Errorf("Expected warning severity, got %s", result.Severity)
 	}
 }
@@ -90,7 +90,7 @@ func TestLintQueries_WHC021_InlineFilterDefinition_TooMany(t *testing.T) {
 	}
 
 	result := findResult(results, "WHC021")
-	if result.Severity != "warning" {
+	if result.Severity != SeverityWarning {
 		t.Errorf("Expected warning severity, got %s", result.Severity)
 	}
 }
@@ -147,7 +147,7 @@ func TestLintQueries_WHC022_RawMapLiteral_Present(t *testing.T) {
 	}
 
 	result := findResult(results, "WHC022")
-	if result.Severity != "warning" {
+	if result.Severity != SeverityWarning {
 		t.Errorf("Expected warning severity, got %s", result.Severity)
 	}
 }
@@ -204,7 +204,7 @@ func TestLintQueries_WHC023_DeeplyNested_TooDeep(t *testing.T) {
 	}
 
 	result := findResult(results, "WHC023")
-	if result.Severity != "warning" {
+	if result.Severity != SeverityWarning {
 		t.Errorf("Expected warning severity, got %s", result.Severity)
 	}
 }

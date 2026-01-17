@@ -9,7 +9,7 @@ import (
 // BoardRule represents a lint rule for boards.
 type BoardRule struct {
 	Code     string
-	Severity string
+	Severity Severity
 	Message  string
 	Check    func(board discovery.DiscoveredBoard) []LintResult
 }
@@ -26,14 +26,14 @@ func AllBoardRules() []BoardRule {
 func WHC030BoardHasNoPanels() BoardRule {
 	return BoardRule{
 		Code:     "WHC030",
-		Severity: "error",
+		Severity: SeverityError,
 		Message:  "Board has no panels",
 		Check: func(board discovery.DiscoveredBoard) []LintResult {
 			if board.PanelCount == 0 {
 				return []LintResult{
 					{
 						Rule:     "WHC030",
-						Severity: "error",
+						Severity: SeverityError,
 						Message:  "Board has no panels",
 						File:     board.File,
 						Line:     board.Line,
@@ -50,7 +50,7 @@ func WHC030BoardHasNoPanels() BoardRule {
 func WHC034BoardExceedsPanelLimit() BoardRule {
 	return BoardRule{
 		Code:     "WHC034",
-		Severity: "warning",
+		Severity: SeverityWarning,
 		Message:  "Board exceeds 20 panels",
 		Check: func(board discovery.DiscoveredBoard) []LintResult {
 			const maxPanels = 20
@@ -58,7 +58,7 @@ func WHC034BoardExceedsPanelLimit() BoardRule {
 				return []LintResult{
 					{
 						Rule:     "WHC034",
-						Severity: "warning",
+						Severity: SeverityWarning,
 						Message:  fmt.Sprintf("Board exceeds %d panels (has %d)", maxPanels, board.PanelCount),
 						File:     board.File,
 						Line:     board.Line,

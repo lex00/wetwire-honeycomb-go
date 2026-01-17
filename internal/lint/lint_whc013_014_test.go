@@ -32,7 +32,7 @@ func TestLintQueries_WHC013_SensitiveColumn_Password(t *testing.T) {
 	}
 
 	result := findResult(results, "WHC013")
-	if result.Severity != "warning" {
+	if result.Severity != SeverityWarning {
 		t.Errorf("Expected warning severity, got %s", result.Severity)
 	}
 }
@@ -252,7 +252,7 @@ func TestLintQueries_WHC014_HardcodedCredentials_PasswordInDataset(t *testing.T)
 	}
 
 	result := findResult(results, "WHC014")
-	if result.Severity != "error" {
+	if result.Severity != SeverityError {
 		t.Errorf("Expected error severity, got %s", result.Severity)
 	}
 }

@@ -28,7 +28,7 @@ func TestLintQueries_WHC001_MissingDataset(t *testing.T) {
 	}
 
 	result := findResult(results, "WHC001")
-	if result.Severity != "error" {
+	if result.Severity != SeverityError {
 		t.Errorf("Expected error severity, got %s", result.Severity)
 	}
 }
@@ -55,7 +55,7 @@ func TestLintQueries_WHC002_MissingTimeRange(t *testing.T) {
 	}
 
 	result := findResult(results, "WHC002")
-	if result.Severity != "error" {
+	if result.Severity != SeverityError {
 		t.Errorf("Expected error severity, got %s", result.Severity)
 	}
 }
@@ -80,7 +80,7 @@ func TestLintQueries_WHC003_EmptyCalculations(t *testing.T) {
 	}
 
 	result := findResult(results, "WHC003")
-	if result.Severity != "error" {
+	if result.Severity != SeverityError {
 		t.Errorf("Expected error severity, got %s", result.Severity)
 	}
 }
@@ -109,7 +109,7 @@ func TestLintQueries_WHC004_BreakdownWithoutOrder(t *testing.T) {
 	}
 
 	result := findResult(results, "WHC004")
-	if result.Severity != "warning" {
+	if result.Severity != SeverityWarning {
 		t.Errorf("Expected warning severity, got %s", result.Severity)
 	}
 }
@@ -144,7 +144,7 @@ func TestLintQueries_WHC005_HighCardinalityBreakdown(t *testing.T) {
 	}
 
 	result := findResult(results, "WHC005")
-	if result.Severity != "warning" {
+	if result.Severity != SeverityWarning {
 		t.Errorf("Expected warning severity, got %s", result.Severity)
 	}
 }
@@ -172,7 +172,7 @@ func TestLintQueries_WHC006_InvalidCalculationForColumnType(t *testing.T) {
 	}
 
 	result := findResult(results, "WHC006")
-	if result.Severity != "error" {
+	if result.Severity != SeverityError {
 		t.Errorf("Expected error severity, got %s", result.Severity)
 	}
 }
@@ -202,7 +202,7 @@ func TestLintQueries_WHC007_InvalidFilterOperator(t *testing.T) {
 	}
 
 	result := findResult(results, "WHC007")
-	if result.Severity != "error" {
+	if result.Severity != SeverityError {
 		t.Errorf("Expected error severity, got %s", result.Severity)
 	}
 }
@@ -231,7 +231,7 @@ func TestLintQueries_WHC008_MissingLimitWithBreakdowns(t *testing.T) {
 	}
 
 	result := findResult(results, "WHC008")
-	if result.Severity != "warning" {
+	if result.Severity != SeverityWarning {
 		t.Errorf("Expected warning severity, got %s", result.Severity)
 	}
 }
@@ -258,7 +258,7 @@ func TestLintQueries_WHC009_TimeRangeExceeds7Days(t *testing.T) {
 	}
 
 	result := findResult(results, "WHC009")
-	if result.Severity != "error" {
+	if result.Severity != SeverityError {
 		t.Errorf("Expected error severity, got %s", result.Severity)
 	}
 }
@@ -296,7 +296,7 @@ func TestLintQueries_WHC010_ExcessiveFilterCount(t *testing.T) {
 	}
 
 	result := findResult(results, "WHC010")
-	if result.Severity != "warning" {
+	if result.Severity != SeverityWarning {
 		t.Errorf("Expected warning severity, got %s", result.Severity)
 	}
 }
@@ -327,7 +327,7 @@ func TestLintQueries_ValidQuery_NoErrors(t *testing.T) {
 	// Filter to only check for errors, not warnings
 	var errors []LintResult
 	for _, r := range results {
-		if r.Severity == "error" {
+		if r.Severity == SeverityError {
 			errors = append(errors, r)
 		}
 	}

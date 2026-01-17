@@ -4,13 +4,23 @@ package lint
 import (
 	"sort"
 
+	corelint "github.com/lex00/wetwire-core-go/lint"
 	"github.com/lex00/wetwire-honeycomb-go/internal/discovery"
+)
+
+// Severity type alias and constants from wetwire-core-go/lint.
+type Severity = corelint.Severity
+
+const (
+	SeverityError   = corelint.SeverityError
+	SeverityWarning = corelint.SeverityWarning
+	SeverityInfo    = corelint.SeverityInfo
 )
 
 // LintResult represents a single lint finding.
 type LintResult struct {
-	Rule     string // e.g., "WHC001"
-	Severity string // "error" or "warning"
+	Rule     string   // e.g., "WHC001"
+	Severity Severity // SeverityError, SeverityWarning, or SeverityInfo
 	Message  string
 	File     string
 	Line     int
@@ -52,7 +62,7 @@ type LintConfig struct {
 	DisabledRules []string
 
 	// SeverityOverrides maps rule codes to custom severity levels
-	SeverityOverrides map[string]string
+	SeverityOverrides map[string]Severity
 }
 
 // LintQueriesWithConfig runs lint rules with the specified configuration.
@@ -89,7 +99,7 @@ func LintQueriesWithConfig(queries []discovery.DiscoveredQuery, config LintConfi
 // HasErrors returns true if any lint results are errors.
 func HasErrors(results []LintResult) bool {
 	for _, r := range results {
-		if r.Severity == "error" {
+		if r.Severity == SeverityError {
 			return true
 		}
 	}
@@ -99,7 +109,7 @@ func HasErrors(results []LintResult) bool {
 // HasWarnings returns true if any lint results are warnings.
 func HasWarnings(results []LintResult) bool {
 	for _, r := range results {
-		if r.Severity == "warning" {
+		if r.Severity == SeverityWarning {
 			return true
 		}
 	}
@@ -119,7 +129,7 @@ func CountByRule(results []LintResult) map[string]int {
 func CountBySeverity(results []LintResult) map[string]int {
 	counts := make(map[string]int)
 	for _, r := range results {
-		counts[r.Severity]++
+		counts[r.Severity.String()]++
 	}
 	return counts
 }
@@ -136,7 +146,7 @@ func FilterByRule(results []LintResult, rule string) []LintResult {
 }
 
 // FilterBySeverity filters lint results by severity.
-func FilterBySeverity(results []LintResult, severity string) []LintResult {
+func FilterBySeverity(results []LintResult, severity Severity) []LintResult {
 	var filtered []LintResult
 	for _, r := range results {
 		if r.Severity == severity {

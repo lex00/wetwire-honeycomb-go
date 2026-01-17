@@ -44,7 +44,7 @@ func TestWHC050TriggerMissingName(t *testing.T) {
 			assert.Len(t, results, tt.wantCount)
 			if tt.wantCount > 0 {
 				assert.Equal(t, "WHC050", results[0].Rule)
-				assert.Equal(t, "error", results[0].Severity)
+				assert.Equal(t, SeverityError, results[0].Severity)
 			}
 		})
 	}
@@ -86,7 +86,7 @@ func TestWHC053TriggerNoRecipients(t *testing.T) {
 			assert.Len(t, results, tt.wantCount)
 			if tt.wantCount > 0 {
 				assert.Equal(t, "WHC053", results[0].Rule)
-				assert.Equal(t, "error", results[0].Severity)
+				assert.Equal(t, SeverityError, results[0].Severity)
 			}
 		})
 	}
@@ -148,7 +148,7 @@ func TestWHC054TriggerFrequencyUnder1Minute(t *testing.T) {
 			assert.Len(t, results, tt.wantCount)
 			if tt.wantCount > 0 {
 				assert.Equal(t, "WHC054", results[0].Rule)
-				assert.Equal(t, "warning", results[0].Severity)
+				assert.Equal(t, SeverityWarning, results[0].Severity)
 			}
 		})
 	}
@@ -190,7 +190,7 @@ func TestWHC056TriggerIsDisabled(t *testing.T) {
 			assert.Len(t, results, tt.wantCount)
 			if tt.wantCount > 0 {
 				assert.Equal(t, "WHC056", results[0].Rule)
-				assert.Equal(t, "info", results[0].Severity)
+				assert.Equal(t, SeverityInfo, results[0].Severity)
 			}
 		})
 	}

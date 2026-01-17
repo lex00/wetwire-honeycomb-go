@@ -33,7 +33,7 @@ func TestLintQueries_WHC012_SecretInFilter_OpenAIKey(t *testing.T) {
 	}
 
 	result := findResult(results, "WHC012")
-	if result.Severity != "error" {
+	if result.Severity != SeverityError {
 		t.Errorf("Expected error severity, got %s", result.Severity)
 	}
 }

@@ -44,7 +44,7 @@ func TestWHC030BoardHasNoPanels(t *testing.T) {
 			assert.Len(t, results, tt.wantCount)
 			if tt.wantCount > 0 {
 				assert.Equal(t, "WHC030", results[0].Rule)
-				assert.Equal(t, "error", results[0].Severity)
+				assert.Equal(t, SeverityError, results[0].Severity)
 			}
 		})
 	}
@@ -96,7 +96,7 @@ func TestWHC034BoardExceedsPanelLimit(t *testing.T) {
 			assert.Len(t, results, tt.wantCount)
 			if tt.wantCount > 0 {
 				assert.Equal(t, "WHC034", results[0].Rule)
-				assert.Equal(t, "warning", results[0].Severity)
+				assert.Equal(t, SeverityWarning, results[0].Severity)
 			}
 		})
 	}
