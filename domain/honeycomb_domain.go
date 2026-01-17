@@ -247,9 +247,108 @@ func (l *honeycombLinter) Lint(ctx *Context, path string, opts LintOpts) (*Resul
 type honeycombInitializer struct{}
 
 func (i *honeycombInitializer) Init(ctx *Context, path string, opts InitOpts) (*Result, error) {
+	// Use opts.Path if provided, otherwise fall back to path argument
+	targetPath := opts.Path
+	if targetPath == "" || targetPath == "." {
+		targetPath = path
+	}
+
+	// Handle scenario initialization
+	if opts.Scenario {
+		return i.initScenario(ctx, targetPath, opts)
+	}
+
+	// Basic project initialization
+	return i.initProject(ctx, targetPath, opts)
+}
+
+// initScenario creates a full scenario structure with prompts and expected outputs
+func (i *honeycombInitializer) initScenario(ctx *Context, path string, opts InitOpts) (*Result, error) {
+	name := opts.Name
+	if name == "" {
+		name = filepath.Base(path)
+	}
+
+	description := opts.Description
+	if description == "" {
+		description = "Honeycomb observability scenario"
+	}
+
+	// Use core's scenario scaffolding
+	scenario := coredomain.ScaffoldScenario(name, description, "honeycomb")
+	created, err := coredomain.WriteScenario(path, scenario)
+	if err != nil {
+		return nil, fmt.Errorf("write scenario: %w", err)
+	}
+
+	// Create honeycomb-specific expected directories
+	expectedDirs := []string{
+		filepath.Join(path, "expected", "queries"),
+		filepath.Join(path, "expected", "slos"),
+		filepath.Join(path, "expected", "triggers"),
+		filepath.Join(path, "expected", "boards"),
+	}
+	for _, dir := range expectedDirs {
+		if err := os.MkdirAll(dir, 0755); err != nil {
+			return nil, fmt.Errorf("create directory %s: %w", dir, err)
+		}
+	}
+
+	// Create example query in expected/queries/
+	exampleQuery := `package queries
+
+import "github.com/lex00/wetwire-honeycomb-go/query"
+
+// RequestLatency tracks P99/P95/P50 latency across endpoints.
+var RequestLatency = query.Query{
+	Dataset:   "your-dataset",
+	TimeRange: query.Hours(1),
+	Breakdowns: []string{"http.route", "http.method"},
+	Calculations: []query.Calculation{
+		query.P99("duration_ms"),
+		query.P95("duration_ms"),
+		query.P50("duration_ms"),
+		query.Count(),
+	},
+	Orders: []query.Order{
+		{Op: "P99", Column: "duration_ms", Order: "descending"},
+	},
+	Limit: 100,
+}
+`
+	queryPath := filepath.Join(path, "expected", "queries", "queries.go")
+	if err := os.WriteFile(queryPath, []byte(exampleQuery), 0644); err != nil {
+		return nil, fmt.Errorf("write example query: %w", err)
+	}
+	created = append(created, "expected/queries/queries.go")
+
+	return NewResultWithData(
+		fmt.Sprintf("Created scenario %s with %d files", name, len(created)),
+		created,
+	), nil
+}
+
+// initProject creates a basic project with example queries
+func (i *honeycombInitializer) initProject(ctx *Context, path string, opts InitOpts) (*Result, error) {
 	// Create directory
 	if err := os.MkdirAll(path, 0755); err != nil {
 		return nil, fmt.Errorf("create directory: %w", err)
+	}
+
+	// Create go.mod
+	name := opts.Name
+	if name == "" {
+		name = filepath.Base(path)
+	}
+	goMod := fmt.Sprintf(`module %s
+
+go 1.23
+
+require github.com/lex00/wetwire-honeycomb-go v0.0.0
+`, name)
+	goModPath := filepath.Join(path, "go.mod")
+	if err := os.WriteFile(goModPath, []byte(goMod), 0644); err != nil {
+		return nil, fmt.Errorf("write go.mod: %w", err)
 	}
 
 	// Create example query file
@@ -257,17 +356,31 @@ func (i *honeycombInitializer) Init(ctx *Context, path string, opts InitOpts) (*
 
 import "github.com/lex00/wetwire-honeycomb-go/query"
 
-// SlowRequests tracks slow HTTP requests
+// SlowRequests finds requests taking longer than 500ms
 var SlowRequests = query.Query{
-	Dataset:   "production",
+	Dataset:   "production", // TODO: Change to your dataset
 	TimeRange: query.Hours(2),
-	Breakdowns: []string{"endpoint", "status_code"},
+	Breakdowns: []string{"endpoint", "service"},
 	Calculations: []query.Calculation{
 		query.P99("duration_ms"),
 		query.Count(),
 	},
 	Filters: []query.Filter{
-		{Column: "duration_ms", Op: ">", Value: 1000},
+		query.GT("duration_ms", 500),
+	},
+	Limit: 100,
+}
+
+// ErrorRate tracks error percentage by service
+var ErrorRate = query.Query{
+	Dataset:   "production", // TODO: Change to your dataset
+	TimeRange: query.Hours(1),
+	Breakdowns: []string{"service"},
+	Calculations: []query.Calculation{
+		query.Count(),
+	},
+	Filters: []query.Filter{
+		query.GTE("status_code", 400),
 	},
 }
 `
@@ -276,7 +389,10 @@ var SlowRequests = query.Query{
 		return nil, fmt.Errorf("write example: %w", err)
 	}
 
-	return NewResult(fmt.Sprintf("Created %s with example query", examplePath)), nil
+	return NewResultWithData(
+		fmt.Sprintf("Created %s with example queries", path),
+		[]string{"go.mod", "queries.go"},
+	), nil
 }
 
 // honeycombValidator implements domain.Validator

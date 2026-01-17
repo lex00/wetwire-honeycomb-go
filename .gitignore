@@ -1,27 +1,5 @@
-# Binaries
-*.exe
-*.exe~
-*.dll
-*.so
-*.dylib
-/wetwire-honeycomb
+# Scenario run outputs
+results/
 
-# Test binary
-*.test
-
-# Output
-*.out
-dist/
-
-# IDE
-.idea/
-.vscode/
-*.swp
-*.swo
-
-# OS
-.DS_Store
-Thumbs.db
-
-# Generated
-output/
+# SVG recordings
+*.svg

@@ -1,0 +1,31 @@
+name: tasks_api_scenario
+description: Generate Honeycomb observability resources for a Task API service
+
+model: sonnet
+
+prompts:
+  default: prompt.md
+  variants:
+    beginner: prompts/beginner.md
+    intermediate: prompts/intermediate.md
+    expert: prompts/expert.md
+    terse: prompts/terse.md
+    verbose: prompts/verbose.md
+
+domains:
+  - name: honeycomb
+    outputs:
+      - "expected/**/*.go"
+
+validation:
+  honeycomb:
+    resources:
+      min: 9
+    queries:
+      min: 4
+    slos:
+      min: 2
+    triggers:
+      min: 2
+    boards:
+      min: 1
