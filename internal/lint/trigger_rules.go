@@ -9,7 +9,7 @@ import (
 // TriggerRule represents a lint rule for triggers.
 type TriggerRule struct {
 	Code     string
-	Severity string
+	Severity Severity
 	Message  string
 	Check    func(trigger discovery.DiscoveredTrigger) []LintResult
 }
@@ -28,14 +28,14 @@ func AllTriggerRules() []TriggerRule {
 func WHC050TriggerMissingName() TriggerRule {
 	return TriggerRule{
 		Code:     "WHC050",
-		Severity: "error",
+		Severity: SeverityError,
 		Message:  "Trigger missing name",
 		Check: func(trigger discovery.DiscoveredTrigger) []LintResult {
 			if trigger.TriggerName == "" {
 				return []LintResult{
 					{
 						Rule:     "WHC050",
-						Severity: "error",
+						Severity: SeverityError,
 						Message:  "Trigger missing name",
 						File:     trigger.File,
 						Line:     trigger.Line,
@@ -52,14 +52,14 @@ func WHC050TriggerMissingName() TriggerRule {
 func WHC053TriggerNoRecipients() TriggerRule {
 	return TriggerRule{
 		Code:     "WHC053",
-		Severity: "error",
+		Severity: SeverityError,
 		Message:  "Trigger has no recipients",
 		Check: func(trigger discovery.DiscoveredTrigger) []LintResult {
 			if trigger.RecipientCount == 0 {
 				return []LintResult{
 					{
 						Rule:     "WHC053",
-						Severity: "error",
+						Severity: SeverityError,
 						Message:  "Trigger has no recipients - alerts won't be delivered",
 						File:     trigger.File,
 						Line:     trigger.Line,
@@ -76,14 +76,14 @@ func WHC053TriggerNoRecipients() TriggerRule {
 func WHC054TriggerFrequencyUnder1Minute() TriggerRule {
 	return TriggerRule{
 		Code:     "WHC054",
-		Severity: "warning",
+		Severity: SeverityWarning,
 		Message:  "Trigger frequency under 1 minute",
 		Check: func(trigger discovery.DiscoveredTrigger) []LintResult {
 			if trigger.FrequencySeconds > 0 && trigger.FrequencySeconds < 60 {
 				return []LintResult{
 					{
 						Rule:     "WHC054",
-						Severity: "warning",
+						Severity: SeverityWarning,
 						Message:  fmt.Sprintf("Trigger frequency under 1 minute (%d seconds) may cause excessive alerts", trigger.FrequencySeconds),
 						File:     trigger.File,
 						Line:     trigger.Line,
@@ -100,14 +100,14 @@ func WHC054TriggerFrequencyUnder1Minute() TriggerRule {
 func WHC056TriggerIsDisabled() TriggerRule {
 	return TriggerRule{
 		Code:     "WHC056",
-		Severity: "info",
+		Severity: SeverityInfo,
 		Message:  "Trigger is disabled",
 		Check: func(trigger discovery.DiscoveredTrigger) []LintResult {
 			if trigger.Disabled {
 				return []LintResult{
 					{
 						Rule:     "WHC056",
-						Severity: "info",
+						Severity: SeverityInfo,
 						Message:  "Trigger is disabled",
 						File:     trigger.File,
 						Line:     trigger.Line,

@@ -234,7 +234,7 @@ func (l *honeycombLinter) Lint(ctx *Context, path string, opts LintOpts) (*Resul
 		errs = append(errs, Error{
 			Path:     r.File,
 			Line:     r.Line,
-			Severity: r.Severity,
+			Severity: r.Severity.String(),
 			Message:  r.Message,
 			Code:     r.Rule,
 		})

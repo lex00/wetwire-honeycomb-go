@@ -9,7 +9,7 @@ import (
 // SLORule represents a lint rule for SLOs.
 type SLORule struct {
 	Code     string
-	Severity string
+	Severity Severity
 	Message  string
 	Check    func(slo discovery.DiscoveredSLO) []LintResult
 }
@@ -27,14 +27,14 @@ func AllSLORules() []SLORule {
 func WHC040SLOMissingName() SLORule {
 	return SLORule{
 		Code:     "WHC040",
-		Severity: "error",
+		Severity: SeverityError,
 		Message:  "SLO missing name",
 		Check: func(slo discovery.DiscoveredSLO) []LintResult {
 			if slo.SLOName == "" {
 				return []LintResult{
 					{
 						Rule:     "WHC040",
-						Severity: "error",
+						Severity: SeverityError,
 						Message:  "SLO missing name",
 						File:     slo.File,
 						Line:     slo.Line,
@@ -51,14 +51,14 @@ func WHC040SLOMissingName() SLORule {
 func WHC044TargetOutOfRange() SLORule {
 	return SLORule{
 		Code:     "WHC044",
-		Severity: "error",
+		Severity: SeverityError,
 		Message:  "Target percentage out of range (0-100)",
 		Check: func(slo discovery.DiscoveredSLO) []LintResult {
 			if slo.TargetPercentage < 0 || slo.TargetPercentage > 100 {
 				return []LintResult{
 					{
 						Rule:     "WHC044",
-						Severity: "error",
+						Severity: SeverityError,
 						Message:  fmt.Sprintf("Target percentage out of range: %.2f (must be 0-100)", slo.TargetPercentage),
 						File:     slo.File,
 						Line:     slo.Line,
@@ -75,14 +75,14 @@ func WHC044TargetOutOfRange() SLORule {
 func WHC047SLONoBurnAlerts() SLORule {
 	return SLORule{
 		Code:     "WHC047",
-		Severity: "info",
+		Severity: SeverityInfo,
 		Message:  "SLO has no burn alerts configured",
 		Check: func(slo discovery.DiscoveredSLO) []LintResult {
 			if slo.BurnAlertCount == 0 {
 				return []LintResult{
 					{
 						Rule:     "WHC047",
-						Severity: "info",
+						Severity: SeverityInfo,
 						Message:  "SLO has no burn alerts configured - consider adding fast and slow burn alerts",
 						File:     slo.File,
 						Line:     slo.Line,

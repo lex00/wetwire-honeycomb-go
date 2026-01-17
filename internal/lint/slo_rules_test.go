@@ -44,7 +44,7 @@ func TestWHC040SLOMissingName(t *testing.T) {
 			assert.Len(t, results, tt.wantCount)
 			if tt.wantCount > 0 {
 				assert.Equal(t, "WHC040", results[0].Rule)
-				assert.Equal(t, "error", results[0].Severity)
+				assert.Equal(t, SeverityError, results[0].Severity)
 			}
 		})
 	}
@@ -106,7 +106,7 @@ func TestWHC044TargetOutOfRange(t *testing.T) {
 			assert.Len(t, results, tt.wantCount)
 			if tt.wantCount > 0 {
 				assert.Equal(t, "WHC044", results[0].Rule)
-				assert.Equal(t, "error", results[0].Severity)
+				assert.Equal(t, SeverityError, results[0].Severity)
 			}
 		})
 	}
@@ -148,7 +148,7 @@ func TestWHC047SLONoBurnAlerts(t *testing.T) {
 			assert.Len(t, results, tt.wantCount)
 			if tt.wantCount > 0 {
 				assert.Equal(t, "WHC047", results[0].Rule)
-				assert.Equal(t, "info", results[0].Severity)
+				assert.Equal(t, SeverityInfo, results[0].Severity)
 			}
 		})
 	}

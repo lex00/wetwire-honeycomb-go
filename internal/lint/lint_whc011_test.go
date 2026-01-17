@@ -31,7 +31,7 @@ func TestLintQueries_WHC011_CircularDependency_FilterSelfReference(t *testing.T)
 	}
 
 	result := findResult(results, "WHC011")
-	if result.Severity != "warning" {
+	if result.Severity != SeverityWarning {
 		t.Errorf("Expected warning severity, got %s", result.Severity)
 	}
 }
@@ -58,7 +58,7 @@ func TestLintQueries_WHC011_CircularDependency_CalculationSelfReference(t *testi
 	}
 
 	result := findResult(results, "WHC011")
-	if result.Severity != "warning" {
+	if result.Severity != SeverityWarning {
 		t.Errorf("Expected warning severity, got %s", result.Severity)
 	}
 }
