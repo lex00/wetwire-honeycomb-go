@@ -26,14 +26,11 @@ import (
 	"strings"
 	"time"
 
-	"github.com/lex00/wetwire-honeycomb-go/board"
 	"github.com/lex00/wetwire-honeycomb-go/domain"
 	"github.com/lex00/wetwire-honeycomb-go/internal/builder"
 	"github.com/lex00/wetwire-honeycomb-go/internal/discovery"
 	"github.com/lex00/wetwire-honeycomb-go/internal/serialize"
 	"github.com/lex00/wetwire-honeycomb-go/query"
-	"github.com/lex00/wetwire-honeycomb-go/slo"
-	"github.com/lex00/wetwire-honeycomb-go/trigger"
 	"github.com/spf13/cobra"
 )
 
@@ -289,39 +286,7 @@ func discoveredToQuery(dq discovery.DiscoveredQuery) query.Query {
 	return q
 }
 
-// discoveredToBoard converts a DiscoveredBoard to a board.Board
-func discoveredToBoard(db discovery.DiscoveredBoard) board.Board {
-	return board.Board{
-		Name:        db.BoardName,
-		Description: db.Description,
-		// Panels are not preserved in discovery - would need AST re-evaluation
-		// This provides basic metadata for serialization
-	}
-}
-
-// discoveredToSLO converts a DiscoveredSLO to an slo.SLO
-func discoveredToSLO(ds discovery.DiscoveredSLO) slo.SLO {
-	return slo.SLO{
-		Name:        ds.SLOName,
-		Description: ds.Description,
-		Dataset:     ds.Dataset,
-		Target:      slo.Percentage(ds.TargetPercentage),
-		TimePeriod:  slo.Days(ds.TimePeriodDays),
-		// SLI and BurnAlerts would need AST re-evaluation
-	}
-}
-
-// discoveredToTrigger converts a DiscoveredTrigger to a trigger.Trigger
-func discoveredToTrigger(dt discovery.DiscoveredTrigger) trigger.Trigger {
-	return trigger.Trigger{
-		Name:        dt.TriggerName,
-		Description: dt.Description,
-		Dataset:     dt.Dataset,
-		Frequency:   trigger.Seconds(dt.FrequencySeconds),
-		Disabled:    dt.Disabled,
-		// Query and Recipients would need AST re-evaluation
-	}
-}
+// Removed: discoveredToBoard, discoveredToSLO, discoveredToTrigger - moved to domain package
 
 // Removed: generateGoCode and formatValue - only used by removed import command
 
