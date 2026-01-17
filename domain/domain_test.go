@@ -87,7 +87,7 @@ func TestHoneycombDomainGrapher(t *testing.T) {
 func TestCreateRootCommand(t *testing.T) {
 	cmd := CreateRootCommand(&HoneycombDomain{})
 	if cmd == nil {
-		t.Error("root command should not be nil")
+		t.Fatal("root command should not be nil")
 	}
 	if cmd.Use != "wetwire-honeycomb" {
 		t.Errorf("expected Use 'wetwire-honeycomb', got %q", cmd.Use)
