@@ -38,7 +38,7 @@ go tool cover -html=coverage.out
 
 # Run specific package tests
 go test -v ./internal/lint/...
-go test -v ./internal/discovery/...
+go test -v ./internal/discover/...
 
 # Run tests with race detection
 go test -race ./...
@@ -173,10 +173,10 @@ type DerivedColumn struct {
 
 #### 2. Add Discovery Support
 
-Create discovery in `internal/discovery/`:
+Create discovery in `internal/discover/`:
 
 ```go
-// internal/discovery/derivedcolumn.go
+// internal/discover/derivedcolumn.go
 package discovery
 
 type DiscoveredDerivedColumn struct {
@@ -235,7 +235,7 @@ func AllDerivedColumnRules() []DerivedColumnRule {
 
 #### 5. Update Discovery All
 
-Add to `DiscoveredResources` in `internal/discovery/discovery.go`:
+Add to `DiscoveredResources` in `internal/discover/discovery.go`:
 
 ```go
 type DiscoveredResources struct {
@@ -253,7 +253,7 @@ Update `cmd/wetwire-honeycomb/main.go` to handle the new resource type in `build
 
 #### 7. Add Tests
 
-- Unit tests for discovery: `internal/discovery/derivedcolumn_test.go`
+- Unit tests for discovery: `internal/discover/derivedcolumn_test.go`
 - Unit tests for serialization: `internal/serialize/derivedcolumn_test.go`
 - Unit tests for lint rules: `internal/lint/derivedcolumn_rules_test.go`
 - E2E tests in `cmd/wetwire-honeycomb/main_test.go`

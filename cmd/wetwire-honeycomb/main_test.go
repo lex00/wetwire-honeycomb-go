@@ -6,7 +6,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/lex00/wetwire-honeycomb-go/internal/discovery"
+	"github.com/lex00/wetwire-honeycomb-go/internal/discover"
 )
 
 func TestE2E_InitThenList(t *testing.T) {

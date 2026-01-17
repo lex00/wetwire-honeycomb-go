@@ -315,7 +315,7 @@ go install github.com/lex00/wetwire-honeycomb-go/cmd/wetwire-honeycomb@latest
 | File | Purpose |
 |------|---------|
 | `cmd/wetwire-honeycomb/main.go` | CLI entry point |
-| `internal/discovery/` | AST-based query discovery |
+| `internal/discover/` | AST-based query discovery |
 | `internal/codegen/` | Query JSON generation |
 | `internal/lint/` | Lint rule implementations |
 | `internal/query/` | Query type definitions |

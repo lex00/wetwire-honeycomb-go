@@ -5,7 +5,7 @@ import (
 	"sort"
 
 	corelint "github.com/lex00/wetwire-core-go/lint"
-	"github.com/lex00/wetwire-honeycomb-go/internal/discovery"
+	"github.com/lex00/wetwire-honeycomb-go/internal/discover"
 )
 
 // Severity type alias and constants from wetwire-core-go/lint.

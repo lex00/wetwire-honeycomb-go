@@ -24,7 +24,7 @@ wetwire-honeycomb-go is a synthesis library that converts Go struct declarations
  |                               v                                            |
  |   +------------------------------------------------------------------+     |
  |   |                     DISCOVERY PHASE                              |     |
- |   |  internal/discovery/                                             |     |
+ |   |  internal/discover/                                             |     |
  |   |  +--------------------+  +--------------------+                  |     |
  |   |  | AST Parser         |  | Type Detection     |                  |     |
  |   |  | - Parse Go files   |  | - query.Query      |                  |     |
@@ -71,7 +71,7 @@ wetwire-honeycomb-go is a synthesis library that converts Go struct declarations
 
 ## Core Components
 
-### Discovery (`internal/discovery/`)
+### Discovery (`internal/discover/`)
 
 The discovery package uses Go's `go/ast` and `go/parser` packages to find and extract resource definitions from Go source files. Discovery is the entry point for the build pipeline.
 
@@ -584,7 +584,7 @@ type Marker struct {
 #### 2. Add Discovery Logic
 
 ```go
-// internal/discovery/marker.go
+// internal/discover/marker.go
 package discovery
 
 type DiscoveredMarker struct {
@@ -613,7 +613,7 @@ func extractMarkerFromComposite(comp *ast.CompositeLit, ...) DiscoveredMarker {
 #### 3. Update DiscoveredResources
 
 ```go
-// internal/discovery/discovery.go
+// internal/discover/discovery.go
 type DiscoveredResources struct {
     Queries  []DiscoveredQuery
     SLOs     []DiscoveredSLO
@@ -788,8 +788,8 @@ Update `docs/LINT_RULES.md` with the new rule documentation.
 
 | Package | Key Files | Purpose |
 |---------|-----------|---------|
-| `internal/discovery` | `discovery.go`, `ast.go` | AST-based resource discovery |
-| `internal/discovery` | `board.go`, `slo.go`, `trigger.go` | Type-specific discovery |
+| `internal/discover` | `discovery.go`, `ast.go` | AST-based resource discovery |
+| `internal/discover` | `board.go`, `slo.go`, `trigger.go` | Type-specific discovery |
 | `internal/serialize` | `serialize.go` | Query JSON serialization |
 | `internal/serialize` | `board.go`, `slo.go`, `trigger.go` | Type-specific serialization |
 | `internal/lint` | `lint.go` | Lint engine and result handling |

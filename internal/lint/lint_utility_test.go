@@ -5,7 +5,7 @@ import (
 	"runtime"
 	"testing"
 
-	"github.com/lex00/wetwire-honeycomb-go/internal/discovery"
+	"github.com/lex00/wetwire-honeycomb-go/internal/discover"
 )
 
 func TestLintQueries_MultipleQueries(t *testing.T) {

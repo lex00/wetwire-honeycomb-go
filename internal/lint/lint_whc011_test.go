@@ -3,7 +3,7 @@ package lint
 import (
 	"testing"
 
-	"github.com/lex00/wetwire-honeycomb-go/internal/discovery"
+	"github.com/lex00/wetwire-honeycomb-go/internal/discover"
 )
 
 func TestLintQueries_WHC011_CircularDependency_FilterSelfReference(t *testing.T) {

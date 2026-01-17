@@ -3,7 +3,7 @@ package lint
 import (
 	"fmt"
 
-	"github.com/lex00/wetwire-honeycomb-go/internal/discovery"
+	"github.com/lex00/wetwire-honeycomb-go/internal/discover"
 )
 
 // TriggerRule represents a lint rule for triggers.

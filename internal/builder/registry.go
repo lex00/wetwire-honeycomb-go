@@ -3,7 +3,7 @@ package builder
 import (
 	"fmt"
 
-	"github.com/lex00/wetwire-honeycomb-go/internal/discovery"
+	"github.com/lex00/wetwire-honeycomb-go/internal/discover"
 )
 
 // Registry stores discovered queries and tracks duplicates.
