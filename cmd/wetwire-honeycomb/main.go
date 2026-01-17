@@ -27,6 +27,7 @@ import (
 	"time"
 
 	"github.com/lex00/wetwire-honeycomb-go/board"
+	"github.com/lex00/wetwire-honeycomb-go/domain"
 	"github.com/lex00/wetwire-honeycomb-go/internal/builder"
 	"github.com/lex00/wetwire-honeycomb-go/internal/discovery"
 	"github.com/lex00/wetwire-honeycomb-go/internal/lint"
@@ -40,48 +41,29 @@ import (
 const version = "0.3.0"
 
 func main() {
-	rootCmd := &cobra.Command{
-		Use:   "wetwire-honeycomb",
-		Short: "Generate Honeycomb Query JSON from Go",
-		Long: `wetwire-honeycomb generates Honeycomb Query JSON from Go query declarations.
+	// Use domain interface for auto-generated commands
+	rootCmd := domain.CreateRootCommand(&domain.HoneycombDomain{})
 
-Define your queries using native Go syntax:
-
-    var SlowRequests = query.Query{
-        Dataset:   "production",
-        TimeRange: query.Hours(2),
-        Breakdowns: []string{"endpoint"},
-        Calculations: []query.Calculation{
-            query.P99("duration_ms"),
-        },
-    }
-
-Then generate Query JSON:
-
-    wetwire-honeycomb build ./queries/...`,
-		Version: version,
-	}
-
-	rootCmd.AddCommand(
-		newBuildCmd(),
-		newLintCmd(),
-		newListCmd(),
-		newImportCmd(),
-		newValidateCmd(),
-		newInitCmd(),
-		newGraphCmd(),
-		newDiffCmd(),
-		newWatchCmd(),
-		newDesignCmd(),
-		newTestCmd(),
-		newVersionCmd(),
-		newMCPCmd(),
-	)
+	// Add domain-specific commands
+	addDomainSpecificCommands(rootCmd)
 
 	if err := rootCmd.Execute(); err != nil {
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)
 	}
+}
+
+// addDomainSpecificCommands adds Honeycomb-specific commands to the root command.
+func addDomainSpecificCommands(rootCmd *cobra.Command) {
+	// Add custom commands not covered by domain interface
+	rootCmd.AddCommand(
+		newImportCmd(),
+		newDiffCmd(),
+		newWatchCmd(),
+		newDesignCmd(),
+		newTestCmd(),
+		newMCPCmd(),
+	)
 }
 
 func newVersionCmd() *cobra.Command {
