@@ -5,7 +5,7 @@ model: sonnet
 timeout: 120s
 
 prompts:
-  default: prompt.md
+  default: prompts/intermediate.md
   variants:
     beginner: prompts/beginner.md
     intermediate: prompts/intermediate.md

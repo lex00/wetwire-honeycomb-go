@@ -38,19 +38,18 @@ go run ./cmd/run_scenario ./examples/tasks_api_scenario --all --verbose
 
 ```
 tasks_api_scenario/
-├── scenario.yaml        # Scenario config (model, timeout, validation)
-├── system_prompt.md     # Domain knowledge for Claude
-├── prompt.md            # Default prompt
-├── prompts/             # Persona-specific prompts
-│   ├── beginner.md
-│   ├── intermediate.md
-│   └── expert.md
-├── expected/            # Gold standard implementation
+├── scenario.yaml        # Config: model, timeout, validation rules
+├── system_prompt.md     # Claude's context (API patterns, SLO guidelines)
+├── prompts/             # User prompts (one per persona)
+│   ├── beginner.md      # Conversational style
+│   ├── intermediate.md  # Structured, default
+│   └── expert.md        # Terse, technical
+├── expected/            # Reference implementation (gold standard)
 │   ├── queries/
 │   ├── slos/
 │   ├── triggers/
 │   └── boards/
-└── results/             # Generated output (gitignored)
+└── results/             # Scenario output (gitignored)
 ```
 
 ## Validating Output
