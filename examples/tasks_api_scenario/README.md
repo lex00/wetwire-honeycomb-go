@@ -4,7 +4,22 @@ Honeycomb observability scenario for a Task API service.
 
 ## What This Demonstrates
 
-**wetwire** is an AI-native infrastructure architecture. Instead of bolting AI onto existing tools, the entire system is designed to make AI agents reliable:
+**wetwire-honeycomb** is an AI-native synthesis layer for Honeycomb observability resources.
+
+### Where It Fits
+
+| Tool | Direction | Scope | AI-native? |
+|------|-----------|-------|------------|
+| [Query Assistant](https://www.honeycomb.io/blog/introducing-query-assistant) | Read | NL → query → results | Yes |
+| [Honeycomb MCP](https://docs.honeycomb.io/integrations/mcp/) | Read | IDE → query/trace/SLO | Yes |
+| [Terraform Provider](https://registry.terraform.io/providers/honeycombio/honeycomb/) | Write | HCL → API | No |
+| **wetwire-honeycomb** | Write | NL → Go → JSON | Yes |
+
+**Synthesis only:** wetwire generates JSON — it doesn't execute queries or call APIs. This keeps it simple and composable. Use the output with Honeycomb's API, or any other tool in your pipeline.
+
+**Complements, doesn't replace:** wetwire *creates* SLOs, triggers, and dashboards. Query Assistant and MCP *investigate* production data. Different layers, same ecosystem.
+
+### Why AI-Native Matters
 
 - **Typed abstraction layer** — Agents work with Go structs, not raw JSON. Types encode valid structures. Agents can't hallucinate field names.
 - **Deterministic synthesis** — Same declarations produce the same output. Every time.
