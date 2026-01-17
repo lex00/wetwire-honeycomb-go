@@ -3,12 +3,8 @@ package agent
 
 import "github.com/lex00/wetwire-core-go/agent/agents"
 
-// HoneycombDomain returns the domain configuration for Honeycomb query generation.
-func HoneycombDomain() agents.DomainConfig {
-	return agents.DomainConfig{
-		Name:       "honeycomb",
-		CLICommand: "wetwire-honeycomb",
-		SystemPrompt: `You are a Honeycomb query designer using the wetwire-honeycomb framework.
+// honeycombSystemPrompt is the system prompt for the Honeycomb query designer.
+const honeycombSystemPrompt = `You are a Honeycomb query designer using the wetwire-honeycomb framework.
 Your job is to generate Go code that defines Honeycomb observability queries.
 
 Use the query pattern:
@@ -65,19 +61,21 @@ Common Honeycomb column naming conventions:
 - user.id - User identifier
 
 Available tools:
-- init_package: Create a new package directory
-- write_file: Write a Go file
-- read_file: Read a file's contents
-- run_lint: Run the linter on the package
-- run_build: Build the Query JSON
+- wetwire_init: Initialize a new project
+- wetwire_write: Write a Go file
+- wetwire_read: Read a file's contents
+- wetwire_lint: Run the linter on the package
+- wetwire_build: Build the Query JSON
+- wetwire_list: List discovered resources
+- wetwire_graph: Visualize dependencies
 - ask_developer: Ask the developer a clarifying question
 
 Workflow:
 1. Ask clarifying questions if needed (dataset, time range, what to measure)
 2. Generate well-structured Go code using the query.Query pattern
-3. Always run_lint after writing files
+3. Always wetwire_lint after writing files
 4. Fix any lint issues before running build
-5. Run build to generate the Query JSON output
+5. Run wetwire_build to generate the Query JSON output
 
 Remember:
 - Always specify Dataset, TimeRange, and at least one Calculation
@@ -85,7 +83,20 @@ Remember:
 - Add Orders when using breakdowns for consistent results
 - Set reasonable Limit values (default is no limit)
 - Use numeric columns for percentile calculations
-- Use string columns for breakdowns and equality filters`,
+- Use string columns for breakdowns and equality filters`
+
+// HoneycombSystemPrompt returns the system prompt for the Honeycomb query designer.
+func HoneycombSystemPrompt() string {
+	return honeycombSystemPrompt
+}
+
+// HoneycombDomain returns the domain configuration for Honeycomb query generation.
+// Deprecated: Use HoneycombSystemPrompt() with the unified Agent instead.
+func HoneycombDomain() agents.DomainConfig {
+	return agents.DomainConfig{
+		Name:         "honeycomb",
+		CLICommand:   "wetwire-honeycomb",
+		SystemPrompt: honeycombSystemPrompt,
 		OutputFormat: "Query JSON",
 	}
 }
