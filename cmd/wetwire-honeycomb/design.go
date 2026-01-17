@@ -12,8 +12,10 @@ import (
 
 	"github.com/lex00/wetwire-core-go/agent/agents"
 	"github.com/lex00/wetwire-core-go/agent/results"
+	coredomain "github.com/lex00/wetwire-core-go/domain"
 	coremcp "github.com/lex00/wetwire-core-go/mcp"
 	anthropicprovider "github.com/lex00/wetwire-core-go/providers/anthropic"
+	"github.com/lex00/wetwire-honeycomb-go/domain"
 	"github.com/lex00/wetwire-honeycomb-go/internal/agent"
 	"github.com/lex00/wetwire-honeycomb-go/internal/kiro"
 	"github.com/spf13/cobra"
@@ -98,14 +100,17 @@ func runDesign(prompt, outputDir string, maxLintCycles int, stream bool, provide
 		}
 	}
 
-	// Create MCP server with Honeycomb tools
-	mcpServer := coremcp.NewServer(coremcp.Config{
-		Name:    "wetwire-honeycomb-design",
-		Version: "1.0.0",
-	})
+	// Create MCP server with all standard Honeycomb tools via domain interface
+	mcpServer := coredomain.BuildMCPServer(&domain.HoneycombDomain{})
 
-	// Register standard wetwire tools for design mode
-	mcpRegisterDesignTools(mcpServer, outputDir)
+	// Add file write/read tools for design mode
+	mcpServer.RegisterToolWithSchema("wetwire_write", "Write content to a file", func(ctx context.Context, args map[string]any) (string, error) {
+		return coremcp.DefaultFileWriteHandler(ctx, args)
+	}, coremcp.WriteSchema)
+
+	mcpServer.RegisterToolWithSchema("wetwire_read", "Read content from a file", func(ctx context.Context, args map[string]any) (string, error) {
+		return coremcp.DefaultFileReadHandler(ctx, args)
+	}, coremcp.ReadSchema)
 
 	// Create Anthropic provider
 	anthropicProvider, err := anthropicprovider.New(anthropicprovider.Config{})
@@ -154,22 +159,6 @@ func (h *humanDeveloperAdapter) Respond(ctx context.Context, message string) (st
 		return "", err
 	}
 	return strings.TrimSpace(answer), nil
-}
-
-// mcpRegisterDesignTools registers tools needed for design mode.
-// These are the same tools as MCP server plus file operations.
-func mcpRegisterDesignTools(server *coremcp.Server, workDir string) {
-	// Register standard Honeycomb tools
-	mcpRegisterStandardTools(server)
-
-	// Add file write/read tools for design mode
-	server.RegisterToolWithSchema("wetwire_write", "Write content to a file", func(ctx context.Context, args map[string]any) (string, error) {
-		return coremcp.DefaultFileWriteHandler(ctx, args)
-	}, coremcp.WriteSchema)
-
-	server.RegisterToolWithSchema("wetwire_read", "Read content from a file", func(ctx context.Context, args map[string]any) (string, error) {
-		return coremcp.DefaultFileReadHandler(ctx, args)
-	}, coremcp.ReadSchema)
 }
 
 // runDesignKiro starts a Kiro CLI chat session for interactive design.
