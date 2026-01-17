@@ -8,6 +8,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Changed
+- **Lint Severity type migration** to wetwire-core-go/lint (#111)
+  - Upgraded wetwire-core-go to v1.16.0 for shared Severity type
+  - Added Severity type alias and constants (SeverityError, SeverityWarning, SeverityInfo)
+  - Replaced string severity values with typed constants across all lint rules
+  - Updated LintResult.Severity and LintConfig.SeverityOverrides to use Severity type
+  - Updated FilterBySeverity to accept Severity parameter instead of string
 - **MCP server migration** to domain.BuildMCPServer() (#101)
   - Upgraded wetwire-core-go to v1.13.0 for auto-generated MCP server support
   - Replaced 833-line manual MCP implementation with minimal 40-line version
