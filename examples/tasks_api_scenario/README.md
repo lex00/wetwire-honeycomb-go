@@ -2,6 +2,16 @@
 
 Honeycomb observability scenario for a Task API service.
 
+## What This Demonstrates
+
+**wetwire** is an AI-native infrastructure architecture. Instead of bolting AI onto existing tools, the entire system is designed to make AI agents reliable:
+
+- **Typed abstraction layer** — Agents work with Go structs, not raw JSON. Types encode valid structures. Agents can't hallucinate field names.
+- **Deterministic synthesis** — Same declarations produce the same output. Every time.
+- **Semantic-level authoring** — Agents operate on *what you want*, not formatting details.
+
+This scenario tests whether different AI personas (beginner, intermediate, expert) can reliably generate the same correct observability resources. The typed API constrains output to valid structures, producing consistent results regardless of how the request is phrased.
+
 ## Running the Scenario
 
 Scenarios use the **Claude CLI** (not the Anthropic API directly). The scenario runner invokes `claude` which handles its own authentication.
