@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+- **MCP server migration** to domain.BuildMCPServer() (#101)
+  - Upgraded wetwire-core-go to v1.13.0 for auto-generated MCP server support
+  - Replaced 833-line manual MCP implementation with minimal 40-line version
+  - Removed manual mcpRegister* functions in favor of domain.BuildMCPServer()
+  - Removed `import` command - HoneycombDomain doesn't implement ImporterDomain
+  - MCP server now auto-generates all standard tools (init, build, lint, list, graph)
+
 ### Added
 - **CLI enhancements** for full resource support (#54)
   - `list` command now shows all resources (queries, boards, SLOs, triggers)
