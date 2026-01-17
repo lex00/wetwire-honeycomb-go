@@ -9,7 +9,7 @@ import (
 
 	coredomain "github.com/lex00/wetwire-core-go/domain"
 	"github.com/lex00/wetwire-honeycomb-go/board"
-	"github.com/lex00/wetwire-honeycomb-go/internal/discovery"
+	"github.com/lex00/wetwire-honeycomb-go/internal/discover"
 	"github.com/lex00/wetwire-honeycomb-go/internal/lint"
 	"github.com/lex00/wetwire-honeycomb-go/internal/serialize"
 	"github.com/lex00/wetwire-honeycomb-go/query"

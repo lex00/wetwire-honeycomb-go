@@ -8,6 +8,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Changed
+- **Renamed `internal/discovery` to `internal/discover`** for consistent naming (#112)
 - **Lint Severity type migration** to wetwire-core-go/lint (#111)
   - Upgraded wetwire-core-go to v1.16.0 for shared Severity type
   - Added Severity type alias and constants (SeverityError, SeverityWarning, SeverityInfo)

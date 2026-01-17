@@ -21,7 +21,7 @@ import (
 	"os"
 
 	"github.com/lex00/wetwire-honeycomb-go/domain"
-	"github.com/lex00/wetwire-honeycomb-go/internal/discovery"
+	"github.com/lex00/wetwire-honeycomb-go/internal/discover"
 	"github.com/lex00/wetwire-honeycomb-go/query"
 	"github.com/spf13/cobra"
 )
