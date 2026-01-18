@@ -1,2 +1,4 @@
 # Test results directory
 results/
+# But track the intermediate expected output as examples
+!results/intermediate/expected/
