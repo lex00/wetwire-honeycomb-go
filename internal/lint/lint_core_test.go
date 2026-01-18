@@ -325,7 +325,7 @@ func TestLintQueries_ValidQuery_NoErrors(t *testing.T) {
 	results := LintQueries(queries)
 
 	// Filter to only check for errors, not warnings
-	var errors []LintResult
+	var errors []Issue
 	for _, r := range results {
 		if r.Severity == SeverityError {
 			errors = append(errors, r)

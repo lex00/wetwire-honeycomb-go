@@ -11,7 +11,7 @@ type SLORule struct {
 	Code     string
 	Severity Severity
 	Message  string
-	Check    func(slo discovery.DiscoveredSLO) []LintResult
+	Check    func(slo discovery.DiscoveredSLO) []Issue
 }
 
 // AllSLORules returns all available SLO lint rules.
@@ -29,16 +29,15 @@ func WHC040SLOMissingName() SLORule {
 		Code:     "WHC040",
 		Severity: SeverityError,
 		Message:  "SLO missing name",
-		Check: func(slo discovery.DiscoveredSLO) []LintResult {
+		Check: func(slo discovery.DiscoveredSLO) []Issue {
 			if slo.SLOName == "" {
-				return []LintResult{
+				return []Issue{
 					{
 						Rule:     "WHC040",
 						Severity: SeverityError,
 						Message:  "SLO missing name",
 						File:     slo.File,
 						Line:     slo.Line,
-						Query:    slo.Name,
 					},
 				}
 			}
@@ -53,16 +52,15 @@ func WHC044TargetOutOfRange() SLORule {
 		Code:     "WHC044",
 		Severity: SeverityError,
 		Message:  "Target percentage out of range (0-100)",
-		Check: func(slo discovery.DiscoveredSLO) []LintResult {
+		Check: func(slo discovery.DiscoveredSLO) []Issue {
 			if slo.TargetPercentage < 0 || slo.TargetPercentage > 100 {
-				return []LintResult{
+				return []Issue{
 					{
 						Rule:     "WHC044",
 						Severity: SeverityError,
 						Message:  fmt.Sprintf("Target percentage out of range: %.2f (must be 0-100)", slo.TargetPercentage),
 						File:     slo.File,
 						Line:     slo.Line,
-						Query:    slo.Name,
 					},
 				}
 			}
@@ -77,16 +75,15 @@ func WHC047SLONoBurnAlerts() SLORule {
 		Code:     "WHC047",
 		Severity: SeverityInfo,
 		Message:  "SLO has no burn alerts configured",
-		Check: func(slo discovery.DiscoveredSLO) []LintResult {
+		Check: func(slo discovery.DiscoveredSLO) []Issue {
 			if slo.BurnAlertCount == 0 {
-				return []LintResult{
+				return []Issue{
 					{
 						Rule:     "WHC047",
 						Severity: SeverityInfo,
 						Message:  "SLO has no burn alerts configured - consider adding fast and slow burn alerts",
 						File:     slo.File,
 						Line:     slo.Line,
-						Query:    slo.Name,
 					},
 				}
 			}

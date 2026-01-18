@@ -150,7 +150,7 @@ func TestLintQueriesWithConfig(t *testing.T) {
 }
 
 func TestHasErrors(t *testing.T) {
-	resultsWithError := []LintResult{
+	resultsWithError := []Issue{
 		{Rule: "WHC001", Severity: SeverityError},
 		{Rule: "WHC004", Severity: SeverityWarning},
 	}
@@ -159,7 +159,7 @@ func TestHasErrors(t *testing.T) {
 		t.Error("HasErrors should return true when there are errors")
 	}
 
-	resultsNoError := []LintResult{
+	resultsNoError := []Issue{
 		{Rule: "WHC004", Severity: SeverityWarning},
 		{Rule: "WHC005", Severity: SeverityWarning},
 	}
@@ -174,7 +174,7 @@ func TestHasErrors(t *testing.T) {
 }
 
 func TestHasWarnings(t *testing.T) {
-	resultsWithWarning := []LintResult{
+	resultsWithWarning := []Issue{
 		{Rule: "WHC001", Severity: SeverityError},
 		{Rule: "WHC004", Severity: SeverityWarning},
 	}
@@ -183,7 +183,7 @@ func TestHasWarnings(t *testing.T) {
 		t.Error("HasWarnings should return true when there are warnings")
 	}
 
-	resultsNoWarning := []LintResult{
+	resultsNoWarning := []Issue{
 		{Rule: "WHC001", Severity: SeverityError},
 		{Rule: "WHC002", Severity: SeverityError},
 	}
@@ -198,7 +198,7 @@ func TestHasWarnings(t *testing.T) {
 }
 
 func TestCountByRule(t *testing.T) {
-	results := []LintResult{
+	results := []Issue{
 		{Rule: "WHC001", Severity: SeverityError},
 		{Rule: "WHC001", Severity: SeverityError},
 		{Rule: "WHC002", Severity: SeverityError},
@@ -224,7 +224,7 @@ func TestCountByRule(t *testing.T) {
 }
 
 func TestCountBySeverity(t *testing.T) {
-	results := []LintResult{
+	results := []Issue{
 		{Rule: "WHC001", Severity: SeverityError},
 		{Rule: "WHC002", Severity: SeverityError},
 		{Rule: "WHC004", Severity: SeverityWarning},
@@ -246,7 +246,7 @@ func TestCountBySeverity(t *testing.T) {
 }
 
 func TestFilterByRule(t *testing.T) {
-	results := []LintResult{
+	results := []Issue{
 		{Rule: "WHC001", Severity: SeverityError},
 		{Rule: "WHC001", Severity: SeverityError},
 		{Rule: "WHC002", Severity: SeverityError},
@@ -271,7 +271,7 @@ func TestFilterByRule(t *testing.T) {
 }
 
 func TestFilterBySeverity(t *testing.T) {
-	results := []LintResult{
+	results := []Issue{
 		{Rule: "WHC001", Severity: SeverityError},
 		{Rule: "WHC002", Severity: SeverityError},
 		{Rule: "WHC004", Severity: SeverityWarning},
@@ -351,7 +351,7 @@ func TestLintQueries_RealWorldExample(t *testing.T) {
 
 // Helper functions
 
-func hasResult(results []LintResult, rule string) bool {
+func hasResult(results []Issue, rule string) bool {
 	for _, r := range results {
 		if r.Rule == rule {
 			return true
@@ -360,7 +360,7 @@ func hasResult(results []LintResult, rule string) bool {
 	return false
 }
 
-func findResult(results []LintResult, rule string) *LintResult {
+func findResult(results []Issue, rule string) *Issue {
 	for i, r := range results {
 		if r.Rule == rule {
 			return &results[i]

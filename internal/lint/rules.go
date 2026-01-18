@@ -12,7 +12,7 @@ type Rule struct {
 	Code     string
 	Severity Severity // SeverityError, SeverityWarning, or SeverityInfo
 	Message  string
-	Check    func(query discovery.DiscoveredQuery) []LintResult
+	Check    func(query discovery.DiscoveredQuery) []Issue
 }
 
 // AllRules returns all available lint rules.
@@ -45,16 +45,15 @@ func WHC001MissingDataset() Rule {
 		Code:     "WHC001",
 		Severity: SeverityError,
 		Message:  "Query is missing dataset",
-		Check: func(query discovery.DiscoveredQuery) []LintResult {
+		Check: func(query discovery.DiscoveredQuery) []Issue {
 			if query.Dataset == "" {
-				return []LintResult{
+				return []Issue{
 					{
 						Rule:     "WHC001",
 						Severity: SeverityError,
 						Message:  "Query is missing dataset",
 						File:     query.File,
 						Line:     query.Line,
-						Query:    query.Name,
 					},
 				}
 			}
@@ -69,17 +68,16 @@ func WHC002MissingTimeRange() Rule {
 		Code:     "WHC002",
 		Severity: SeverityError,
 		Message:  "Query is missing time_range",
-		Check: func(query discovery.DiscoveredQuery) []LintResult {
+		Check: func(query discovery.DiscoveredQuery) []Issue {
 			// Time range is missing if all time fields are zero
 			if query.TimeRange.TimeRange == 0 && query.TimeRange.StartTime == 0 && query.TimeRange.EndTime == 0 {
-				return []LintResult{
+				return []Issue{
 					{
 						Rule:     "WHC002",
 						Severity: SeverityError,
 						Message:  "Query is missing time_range",
 						File:     query.File,
 						Line:     query.Line,
-						Query:    query.Name,
 					},
 				}
 			}
@@ -94,16 +92,15 @@ func WHC003EmptyCalculations() Rule {
 		Code:     "WHC003",
 		Severity: SeverityError,
 		Message:  "Query has empty calculations",
-		Check: func(query discovery.DiscoveredQuery) []LintResult {
+		Check: func(query discovery.DiscoveredQuery) []Issue {
 			if len(query.Calculations) == 0 {
-				return []LintResult{
+				return []Issue{
 					{
 						Rule:     "WHC003",
 						Severity: SeverityError,
 						Message:  "Query has empty calculations",
 						File:     query.File,
 						Line:     query.Line,
-						Query:    query.Name,
 					},
 				}
 			}
@@ -118,21 +115,20 @@ func WHC004BreakdownWithoutOrder() Rule {
 		Code:     "WHC004",
 		Severity: SeverityWarning,
 		Message:  "Query has breakdowns but no order specified",
-		Check: func(query discovery.DiscoveredQuery) []LintResult {
+		Check: func(query discovery.DiscoveredQuery) []Issue {
 			// For now, we check if there are breakdowns present
 			// In the real implementation, we'd check if Orders field is empty
 			// Since DiscoveredQuery doesn't have Orders field, we assume missing
 			if len(query.Breakdowns) > 0 {
 				// This is a simplified check - in reality you'd need to verify
 				// that the query struct doesn't have orders
-				return []LintResult{
+				return []Issue{
 					{
 						Rule:     "WHC004",
 						Severity: SeverityWarning,
 						Message:  "Query has breakdowns but no order specified - results may be unpredictable",
 						File:     query.File,
 						Line:     query.Line,
-						Query:    query.Name,
 					},
 				}
 			}
@@ -147,17 +143,16 @@ func WHC005HighCardinalityBreakdown() Rule {
 		Code:     "WHC005",
 		Severity: SeverityWarning,
 		Message:  "Query has high cardinality breakdown (>100 groups)",
-		Check: func(query discovery.DiscoveredQuery) []LintResult {
+		Check: func(query discovery.DiscoveredQuery) []Issue {
 			// High cardinality is indicated by a limit > 100
 			if query.Limit > 100 {
-				return []LintResult{
+				return []Issue{
 					{
 						Rule:     "WHC005",
 						Severity: SeverityWarning,
 						Message:  fmt.Sprintf("Query has high cardinality breakdown (limit=%d > 100 groups)", query.Limit),
 						File:     query.File,
 						Line:     query.Line,
-						Query:    query.Name,
 					},
 				}
 			}
@@ -172,8 +167,8 @@ func WHC006InvalidCalculationForColumnType() Rule {
 		Code:     "WHC006",
 		Severity: SeverityError,
 		Message:  "Invalid calculation for column type",
-		Check: func(query discovery.DiscoveredQuery) []LintResult {
-			var results []LintResult
+		Check: func(query discovery.DiscoveredQuery) []Issue {
+			var results []Issue
 
 			// Numeric operations that shouldn't be used on string columns
 			numericOps := map[string]bool{
@@ -198,13 +193,12 @@ func WHC006InvalidCalculationForColumnType() Rule {
 					columnLower := strings.ToLower(calc.Column)
 					for _, pattern := range stringPatterns {
 						if strings.Contains(columnLower, pattern) && !strings.Contains(columnLower, "_ms") && !strings.Contains(columnLower, "_bytes") && !strings.Contains(columnLower, "_count") {
-							results = append(results, LintResult{
+							results = append(results, Issue{
 								Rule:     "WHC006",
 								Severity: SeverityError,
 								Message:  fmt.Sprintf("Calculation %s should not be used on likely string column '%s'", calc.Op, calc.Column),
 								File:     query.File,
 								Line:     query.Line,
-								Query:    query.Name,
 							})
 							break
 						}
@@ -223,8 +217,8 @@ func WHC007InvalidFilterOperator() Rule {
 		Code:     "WHC007",
 		Severity: SeverityError,
 		Message:  "Invalid filter operator",
-		Check: func(query discovery.DiscoveredQuery) []LintResult {
-			var results []LintResult
+		Check: func(query discovery.DiscoveredQuery) []Issue {
+			var results []Issue
 
 			validOps := map[string]bool{
 				"=":                true,
@@ -244,13 +238,12 @@ func WHC007InvalidFilterOperator() Rule {
 
 			for _, filter := range query.Filters {
 				if !validOps[filter.Op] {
-					results = append(results, LintResult{
+					results = append(results, Issue{
 						Rule:     "WHC007",
 						Severity: SeverityError,
 						Message:  fmt.Sprintf("Invalid filter operator '%s' on column '%s'", filter.Op, filter.Column),
 						File:     query.File,
 						Line:     query.Line,
-						Query:    query.Name,
 					})
 				}
 			}
@@ -266,16 +259,15 @@ func WHC008MissingLimitWithBreakdowns() Rule {
 		Code:     "WHC008",
 		Severity: SeverityWarning,
 		Message:  "Query has breakdowns but no limit specified",
-		Check: func(query discovery.DiscoveredQuery) []LintResult {
+		Check: func(query discovery.DiscoveredQuery) []Issue {
 			if len(query.Breakdowns) > 0 && query.Limit == 0 {
-				return []LintResult{
+				return []Issue{
 					{
 						Rule:     "WHC008",
 						Severity: SeverityWarning,
 						Message:  "Query has breakdowns but no limit specified - may return too many results",
 						File:     query.File,
 						Line:     query.Line,
-						Query:    query.Name,
 					},
 				}
 			}
@@ -290,19 +282,18 @@ func WHC009TimeRangeExceeds7Days() Rule {
 		Code:     "WHC009",
 		Severity: SeverityError,
 		Message:  "Time range exceeds 7 days",
-		Check: func(query discovery.DiscoveredQuery) []LintResult {
+		Check: func(query discovery.DiscoveredQuery) []Issue {
 			const sevenDays = 7 * 86400 // 7 days in seconds
 
 			if query.TimeRange.TimeRange > sevenDays {
 				days := query.TimeRange.TimeRange / 86400
-				return []LintResult{
+				return []Issue{
 					{
 						Rule:     "WHC009",
 						Severity: SeverityError,
 						Message:  fmt.Sprintf("Time range exceeds 7 days (current: %d days)", days),
 						File:     query.File,
 						Line:     query.Line,
-						Query:    query.Name,
 					},
 				}
 			}
@@ -312,14 +303,13 @@ func WHC009TimeRangeExceeds7Days() Rule {
 				diff := query.TimeRange.EndTime - query.TimeRange.StartTime
 				if diff > sevenDays {
 					days := diff / 86400
-					return []LintResult{
+					return []Issue{
 						{
 							Rule:     "WHC009",
 							Severity: SeverityError,
 							Message:  fmt.Sprintf("Time range exceeds 7 days (current: %d days)", days),
 							File:     query.File,
 							Line:     query.Line,
-							Query:    query.Name,
 						},
 					}
 				}
@@ -336,18 +326,17 @@ func WHC010ExcessiveFilterCount() Rule {
 		Code:     "WHC010",
 		Severity: SeverityWarning,
 		Message:  "Query has excessive filter count (>50)",
-		Check: func(query discovery.DiscoveredQuery) []LintResult {
+		Check: func(query discovery.DiscoveredQuery) []Issue {
 			const maxFilters = 50
 
 			if len(query.Filters) > maxFilters {
-				return []LintResult{
+				return []Issue{
 					{
 						Rule:     "WHC010",
 						Severity: SeverityWarning,
 						Message:  fmt.Sprintf("Query has excessive filter count (%d > %d)", len(query.Filters), maxFilters),
 						File:     query.File,
 						Line:     query.Line,
-						Query:    query.Name,
 					},
 				}
 			}
@@ -371,8 +360,8 @@ func WHC011CircularDependency() Rule {
 		Code:     "WHC011",
 		Severity: SeverityWarning,
 		Message:  "Potential circular dependency detected",
-		Check: func(query discovery.DiscoveredQuery) []LintResult {
-			var results []LintResult
+		Check: func(query discovery.DiscoveredQuery) []Issue {
+			var results []Issue
 
 			// Check for self-referential patterns where the query name
 			// appears in filter columns or calculation columns
@@ -387,13 +376,12 @@ func WHC011CircularDependency() Rule {
 			for _, filter := range query.Filters {
 				columnLower := strings.ToLower(filter.Column)
 				if strings.Contains(columnLower, queryNameLower) {
-					results = append(results, LintResult{
+					results = append(results, Issue{
 						Rule:     "WHC011",
 						Severity: SeverityWarning,
 						Message:  fmt.Sprintf("Potential circular dependency: filter column '%s' references query name '%s'", filter.Column, query.Name),
 						File:     query.File,
 						Line:     query.Line,
-						Query:    query.Name,
 					})
 				}
 			}
@@ -405,13 +393,12 @@ func WHC011CircularDependency() Rule {
 				}
 				columnLower := strings.ToLower(calc.Column)
 				if strings.Contains(columnLower, queryNameLower) {
-					results = append(results, LintResult{
+					results = append(results, Issue{
 						Rule:     "WHC011",
 						Severity: SeverityWarning,
 						Message:  fmt.Sprintf("Potential circular dependency: calculation column '%s' references query name '%s'", calc.Column, query.Name),
 						File:     query.File,
 						Line:     query.Line,
-						Query:    query.Name,
 					})
 				}
 			}
@@ -428,8 +415,8 @@ func WHC012SecretInFilter() Rule {
 		Code:     "WHC012",
 		Severity: SeverityError,
 		Message:  "Potential secret detected in filter value",
-		Check: func(query discovery.DiscoveredQuery) []LintResult {
-			var results []LintResult
+		Check: func(query discovery.DiscoveredQuery) []Issue {
+			var results []Issue
 
 			// Patterns that indicate secret/token values
 			secretPatterns := []string{
@@ -463,13 +450,12 @@ func WHC012SecretInFilter() Rule {
 				valueLower := strings.ToLower(valueStr)
 				for _, pattern := range secretPatterns {
 					if strings.Contains(valueLower, pattern) {
-						results = append(results, LintResult{
+						results = append(results, Issue{
 							Rule:     "WHC012",
 							Severity: SeverityError,
 							Message:  fmt.Sprintf("Potential secret detected in filter value for column '%s' (pattern: %s)", filter.Column, pattern),
 							File:     query.File,
 							Line:     query.Line,
-							Query:    query.Name,
 						})
 						break // Only report once per filter
 					}
@@ -488,8 +474,8 @@ func WHC013SensitiveColumnExposure() Rule {
 		Code:     "WHC013",
 		Severity: SeverityWarning,
 		Message:  "Query may expose sensitive/PII column data",
-		Check: func(query discovery.DiscoveredQuery) []LintResult {
-			var results []LintResult
+		Check: func(query discovery.DiscoveredQuery) []Issue {
+			var results []Issue
 
 			// Patterns that indicate PII or sensitive data columns
 			sensitivePatterns := []string{
@@ -527,13 +513,12 @@ func WHC013SensitiveColumnExposure() Rule {
 				breakdownLower := strings.ToLower(breakdown)
 				for _, pattern := range sensitivePatterns {
 					if strings.Contains(breakdownLower, pattern) {
-						results = append(results, LintResult{
+						results = append(results, Issue{
 							Rule:     "WHC013",
 							Severity: SeverityWarning,
 							Message:  fmt.Sprintf("Breakdown column '%s' may expose sensitive/PII data (pattern: %s)", breakdown, pattern),
 							File:     query.File,
 							Line:     query.Line,
-							Query:    query.Name,
 						})
 						break // Only report once per column
 					}
@@ -552,8 +537,8 @@ func WHC014HardcodedCredentials() Rule {
 		Code:     "WHC014",
 		Severity: SeverityError,
 		Message:  "Hardcoded credentials detected in dataset name",
-		Check: func(query discovery.DiscoveredQuery) []LintResult {
-			var results []LintResult
+		Check: func(query discovery.DiscoveredQuery) []Issue {
+			var results []Issue
 
 			// Patterns that indicate hardcoded credentials in dataset names
 			credentialPatterns := []string{
@@ -574,13 +559,12 @@ func WHC014HardcodedCredentials() Rule {
 			datasetLower := strings.ToLower(query.Dataset)
 			for _, pattern := range credentialPatterns {
 				if strings.Contains(datasetLower, pattern) {
-					results = append(results, LintResult{
+					results = append(results, Issue{
 						Rule:     "WHC014",
 						Severity: SeverityError,
 						Message:  fmt.Sprintf("Hardcoded credentials detected in dataset name (pattern: %s)", pattern),
 						File:     query.File,
 						Line:     query.Line,
-						Query:    query.Name,
 					})
 					break // Only report once per dataset
 				}
@@ -598,19 +582,18 @@ func WHC020InlineCalculationDefinition() Rule {
 		Code:     "WHC020",
 		Severity: SeverityWarning,
 		Message:  "Extract inline Calculation definitions to named variables",
-		Check: func(query discovery.DiscoveredQuery) []LintResult {
+		Check: func(query discovery.DiscoveredQuery) []Issue {
 			// Threshold: more than 3 inline calculations suggest extraction
 			const threshold = 3
 
 			if query.Style.InlineCalculationCount > threshold {
-				return []LintResult{
+				return []Issue{
 					{
 						Rule:     "WHC020",
 						Severity: SeverityWarning,
 						Message:  fmt.Sprintf("Query has %d inline Calculation definitions - consider extracting to named variables for reusability", query.Style.InlineCalculationCount),
 						File:     query.File,
 						Line:     query.Line,
-						Query:    query.Name,
 					},
 				}
 			}
@@ -626,19 +609,18 @@ func WHC021InlineFilterDefinition() Rule {
 		Code:     "WHC021",
 		Severity: SeverityWarning,
 		Message:  "Extract inline Filter definitions to named variables",
-		Check: func(query discovery.DiscoveredQuery) []LintResult {
+		Check: func(query discovery.DiscoveredQuery) []Issue {
 			// Threshold: more than 3 inline filters suggest extraction
 			const threshold = 3
 
 			if query.Style.InlineFilterCount > threshold {
-				return []LintResult{
+				return []Issue{
 					{
 						Rule:     "WHC021",
 						Severity: SeverityWarning,
 						Message:  fmt.Sprintf("Query has %d inline Filter definitions - consider extracting to named variables for reusability", query.Style.InlineFilterCount),
 						File:     query.File,
 						Line:     query.Line,
-						Query:    query.Name,
 					},
 				}
 			}
@@ -654,16 +636,15 @@ func WHC022RawMapLiteral() Rule {
 		Code:     "WHC022",
 		Severity: SeverityWarning,
 		Message:  "Use typed query builders instead of raw map literals",
-		Check: func(query discovery.DiscoveredQuery) []LintResult {
+		Check: func(query discovery.DiscoveredQuery) []Issue {
 			if query.Style.HasRawMapLiteral {
-				return []LintResult{
+				return []Issue{
 					{
 						Rule:     "WHC022",
 						Severity: SeverityWarning,
 						Message:  "Query contains raw map literals - use typed query builders for better type safety",
 						File:     query.File,
 						Line:     query.Line,
-						Query:    query.Name,
 					},
 				}
 			}
@@ -679,19 +660,18 @@ func WHC023DeeplyNestedConfiguration() Rule {
 		Code:     "WHC023",
 		Severity: SeverityWarning,
 		Message:  "Prevent deeply nested query configurations",
-		Check: func(query discovery.DiscoveredQuery) []LintResult {
+		Check: func(query discovery.DiscoveredQuery) []Issue {
 			// Threshold: nesting deeper than 4 levels is hard to read
 			const maxDepth = 4
 
 			if query.Style.MaxNestingDepth > maxDepth {
-				return []LintResult{
+				return []Issue{
 					{
 						Rule:     "WHC023",
 						Severity: SeverityWarning,
 						Message:  fmt.Sprintf("Query has nesting depth of %d - consider flattening configuration (max recommended: %d)", query.Style.MaxNestingDepth, maxDepth),
 						File:     query.File,
 						Line:     query.Line,
-						Query:    query.Name,
 					},
 				}
 			}
