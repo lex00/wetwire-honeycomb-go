@@ -17,26 +17,19 @@ const (
 	SeverityInfo    = corelint.SeverityInfo
 )
 
-// LintResult represents a single lint finding.
-type LintResult struct {
-	Rule     string   // e.g., "WHC001"
-	Severity Severity // SeverityError, SeverityWarning, or SeverityInfo
-	Message  string
-	File     string
-	Line     int
-	Query    string // Query name
-}
+// Issue is a type alias to the shared Issue type from wetwire-core-go/lint.
+type Issue = corelint.Issue
 
 // LintQueries runs all lint rules against the provided queries.
 // Results are sorted by file and line number.
-func LintQueries(queries []discovery.DiscoveredQuery) []LintResult {
+func LintQueries(queries []discovery.DiscoveredQuery) []Issue {
 	return LintQueriesWithRules(queries, AllRules())
 }
 
 // LintQueriesWithRules runs specific lint rules against the provided queries.
 // Results are sorted by file and line number.
-func LintQueriesWithRules(queries []discovery.DiscoveredQuery, rules []Rule) []LintResult {
-	var results []LintResult
+func LintQueriesWithRules(queries []discovery.DiscoveredQuery, rules []Rule) []Issue {
+	var results []Issue
 
 	for _, query := range queries {
 		for _, rule := range rules {
@@ -66,7 +59,7 @@ type LintConfig struct {
 }
 
 // LintQueriesWithConfig runs lint rules with the specified configuration.
-func LintQueriesWithConfig(queries []discovery.DiscoveredQuery, config LintConfig) []LintResult {
+func LintQueriesWithConfig(queries []discovery.DiscoveredQuery, config LintConfig) []Issue {
 	// Get all rules
 	rules := AllRules()
 
@@ -97,7 +90,7 @@ func LintQueriesWithConfig(queries []discovery.DiscoveredQuery, config LintConfi
 }
 
 // HasErrors returns true if any lint results are errors.
-func HasErrors(results []LintResult) bool {
+func HasErrors(results []Issue) bool {
 	for _, r := range results {
 		if r.Severity == SeverityError {
 			return true
@@ -107,7 +100,7 @@ func HasErrors(results []LintResult) bool {
 }
 
 // HasWarnings returns true if any lint results are warnings.
-func HasWarnings(results []LintResult) bool {
+func HasWarnings(results []Issue) bool {
 	for _, r := range results {
 		if r.Severity == SeverityWarning {
 			return true
@@ -117,7 +110,7 @@ func HasWarnings(results []LintResult) bool {
 }
 
 // CountByRule counts lint results grouped by rule code.
-func CountByRule(results []LintResult) map[string]int {
+func CountByRule(results []Issue) map[string]int {
 	counts := make(map[string]int)
 	for _, r := range results {
 		counts[r.Rule]++
@@ -126,7 +119,7 @@ func CountByRule(results []LintResult) map[string]int {
 }
 
 // CountBySeverity counts lint results grouped by severity.
-func CountBySeverity(results []LintResult) map[string]int {
+func CountBySeverity(results []Issue) map[string]int {
 	counts := make(map[string]int)
 	for _, r := range results {
 		counts[r.Severity.String()]++
@@ -135,8 +128,8 @@ func CountBySeverity(results []LintResult) map[string]int {
 }
 
 // FilterByRule filters lint results by rule code.
-func FilterByRule(results []LintResult, rule string) []LintResult {
-	var filtered []LintResult
+func FilterByRule(results []Issue, rule string) []Issue {
+	var filtered []Issue
 	for _, r := range results {
 		if r.Rule == rule {
 			filtered = append(filtered, r)
@@ -146,8 +139,8 @@ func FilterByRule(results []LintResult, rule string) []LintResult {
 }
 
 // FilterBySeverity filters lint results by severity.
-func FilterBySeverity(results []LintResult, severity Severity) []LintResult {
-	var filtered []LintResult
+func FilterBySeverity(results []Issue, severity Severity) []Issue {
+	var filtered []Issue
 	for _, r := range results {
 		if r.Severity == severity {
 			filtered = append(filtered, r)
@@ -158,8 +151,8 @@ func FilterBySeverity(results []LintResult, severity Severity) []LintResult {
 
 // LintBoards runs all board lint rules against the provided boards.
 // Results are sorted by file and line number.
-func LintBoards(boards []discovery.DiscoveredBoard) []LintResult {
-	var results []LintResult
+func LintBoards(boards []discovery.DiscoveredBoard) []Issue {
+	var results []Issue
 
 	rules := AllBoardRules()
 	for _, board := range boards {
@@ -181,8 +174,8 @@ func LintBoards(boards []discovery.DiscoveredBoard) []LintResult {
 
 // LintSLOs runs all SLO lint rules against the provided SLOs.
 // Results are sorted by file and line number.
-func LintSLOs(slos []discovery.DiscoveredSLO) []LintResult {
-	var results []LintResult
+func LintSLOs(slos []discovery.DiscoveredSLO) []Issue {
+	var results []Issue
 
 	rules := AllSLORules()
 	for _, slo := range slos {
@@ -204,8 +197,8 @@ func LintSLOs(slos []discovery.DiscoveredSLO) []LintResult {
 
 // LintTriggers runs all trigger lint rules against the provided triggers.
 // Results are sorted by file and line number.
-func LintTriggers(triggers []discovery.DiscoveredTrigger) []LintResult {
-	var results []LintResult
+func LintTriggers(triggers []discovery.DiscoveredTrigger) []Issue {
+	var results []Issue
 
 	rules := AllTriggerRules()
 	for _, trigger := range triggers {
@@ -227,8 +220,8 @@ func LintTriggers(triggers []discovery.DiscoveredTrigger) []LintResult {
 
 // LintAll runs all lint rules against all discovered resources.
 // Results are sorted by file and line number.
-func LintAll(resources *discovery.DiscoveredResources) []LintResult {
-	var results []LintResult
+func LintAll(resources *discovery.DiscoveredResources) []Issue {
+	var results []Issue
 
 	results = append(results, LintQueries(resources.Queries)...)
 	results = append(results, LintBoards(resources.Boards)...)
