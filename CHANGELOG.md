@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- **LintOpts.Fix and LintOpts.Disable support** (#117)
+  - `opts.Fix` support in Linter.Lint() (auto-fix not yet implemented, returns message)
+  - `opts.Disable` support to skip specified rule IDs (e.g., `["WHC001", "WHC002"]`)
+  - `LintAllWithConfig()` function for configurable linting with disabled rules
+  - `LintBoardsWithRules()`, `LintSLOsWithRules()`, `LintTriggersWithRules()` helper functions
+
 ### Changed
 - **Renamed `internal/discovery` to `internal/discover`** for consistent naming (#112)
 - **Lint Severity type migration** to wetwire-core-go/lint (#111)

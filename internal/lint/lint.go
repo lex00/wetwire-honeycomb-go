@@ -152,9 +152,14 @@ func FilterBySeverity(results []Issue, severity Severity) []Issue {
 // LintBoards runs all board lint rules against the provided boards.
 // Results are sorted by file and line number.
 func LintBoards(boards []discovery.DiscoveredBoard) []Issue {
+	return LintBoardsWithRules(boards, AllBoardRules())
+}
+
+// LintBoardsWithRules runs specific board lint rules against the provided boards.
+// Results are sorted by file and line number.
+func LintBoardsWithRules(boards []discovery.DiscoveredBoard, rules []BoardRule) []Issue {
 	var results []Issue
 
-	rules := AllBoardRules()
 	for _, board := range boards {
 		for _, rule := range rules {
 			ruleResults := rule.Check(board)
@@ -175,9 +180,14 @@ func LintBoards(boards []discovery.DiscoveredBoard) []Issue {
 // LintSLOs runs all SLO lint rules against the provided SLOs.
 // Results are sorted by file and line number.
 func LintSLOs(slos []discovery.DiscoveredSLO) []Issue {
+	return LintSLOsWithRules(slos, AllSLORules())
+}
+
+// LintSLOsWithRules runs specific SLO lint rules against the provided SLOs.
+// Results are sorted by file and line number.
+func LintSLOsWithRules(slos []discovery.DiscoveredSLO, rules []SLORule) []Issue {
 	var results []Issue
 
-	rules := AllSLORules()
 	for _, slo := range slos {
 		for _, rule := range rules {
 			ruleResults := rule.Check(slo)
@@ -198,9 +208,14 @@ func LintSLOs(slos []discovery.DiscoveredSLO) []Issue {
 // LintTriggers runs all trigger lint rules against the provided triggers.
 // Results are sorted by file and line number.
 func LintTriggers(triggers []discovery.DiscoveredTrigger) []Issue {
+	return LintTriggersWithRules(triggers, AllTriggerRules())
+}
+
+// LintTriggersWithRules runs specific trigger lint rules against the provided triggers.
+// Results are sorted by file and line number.
+func LintTriggersWithRules(triggers []discovery.DiscoveredTrigger, rules []TriggerRule) []Issue {
 	var results []Issue
 
-	rules := AllTriggerRules()
 	for _, trigger := range triggers {
 		for _, rule := range rules {
 			ruleResults := rule.Check(trigger)
@@ -221,12 +236,67 @@ func LintTriggers(triggers []discovery.DiscoveredTrigger) []Issue {
 // LintAll runs all lint rules against all discovered resources.
 // Results are sorted by file and line number.
 func LintAll(resources *discovery.DiscoveredResources) []Issue {
+	return LintAllWithConfig(resources, LintConfig{})
+}
+
+// LintAllWithConfig runs all lint rules against all discovered resources with configuration.
+// It respects DisabledRules and SeverityOverrides from the config.
+// Results are sorted by file and line number.
+func LintAllWithConfig(resources *discovery.DiscoveredResources, config LintConfig) []Issue {
 	var results []Issue
 
-	results = append(results, LintQueries(resources.Queries)...)
-	results = append(results, LintBoards(resources.Boards)...)
-	results = append(results, LintSLOs(resources.SLOs)...)
-	results = append(results, LintTriggers(resources.Triggers)...)
+	// Build disabled rules set
+	disabledSet := make(map[string]bool)
+	for _, code := range config.DisabledRules {
+		disabledSet[code] = true
+	}
+
+	// Filter query rules
+	queryRules := AllRules()
+	var enabledQueryRules []Rule
+	for _, rule := range queryRules {
+		if !disabledSet[rule.Code] {
+			enabledQueryRules = append(enabledQueryRules, rule)
+		}
+	}
+	results = append(results, LintQueriesWithRules(resources.Queries, enabledQueryRules)...)
+
+	// Filter board rules
+	boardRules := AllBoardRules()
+	var enabledBoardRules []BoardRule
+	for _, rule := range boardRules {
+		if !disabledSet[rule.Code] {
+			enabledBoardRules = append(enabledBoardRules, rule)
+		}
+	}
+	results = append(results, LintBoardsWithRules(resources.Boards, enabledBoardRules)...)
+
+	// Filter SLO rules
+	sloRules := AllSLORules()
+	var enabledSLORules []SLORule
+	for _, rule := range sloRules {
+		if !disabledSet[rule.Code] {
+			enabledSLORules = append(enabledSLORules, rule)
+		}
+	}
+	results = append(results, LintSLOsWithRules(resources.SLOs, enabledSLORules)...)
+
+	// Filter trigger rules
+	triggerRules := AllTriggerRules()
+	var enabledTriggerRules []TriggerRule
+	for _, rule := range triggerRules {
+		if !disabledSet[rule.Code] {
+			enabledTriggerRules = append(enabledTriggerRules, rule)
+		}
+	}
+	results = append(results, LintTriggersWithRules(resources.Triggers, enabledTriggerRules)...)
+
+	// Apply severity overrides
+	for i := range results {
+		if newSeverity, ok := config.SeverityOverrides[results[i].Rule]; ok {
+			results[i].Severity = newSeverity
+		}
+	}
 
 	// Sort all results together by file, then line
 	sort.Slice(results, func(i, j int) bool {
