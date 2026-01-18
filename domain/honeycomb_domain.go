@@ -221,8 +221,32 @@ func (l *honeycombLinter) Lint(ctx *Context, path string, opts LintOpts) (*Resul
 		return nil, fmt.Errorf("discovery failed: %w", err)
 	}
 
-	// Run lint on all resources
-	results := lint.LintAll(resources)
+	// Build lint config from opts
+	config := lint.LintConfig{
+		DisabledRules: opts.Disable,
+	}
+
+	// Run lint on all resources with config
+	results := lint.LintAllWithConfig(resources, config)
+
+	// Handle Fix mode - auto-fix is not yet implemented
+	if opts.Fix {
+		if len(results) == 0 {
+			return NewResult("No lint issues found (fix mode requested, no fixable issues)"), nil
+		}
+		// Auto-fix not yet implemented, return message indicating this
+		errs := make([]Error, 0, len(results))
+		for _, r := range results {
+			errs = append(errs, Error{
+				Path:     r.File,
+				Line:     r.Line,
+				Severity: r.Severity.String(),
+				Message:  r.Message,
+				Code:     r.Rule,
+			})
+		}
+		return NewErrorResultMultiple("lint issues found (auto-fix not yet implemented)", errs), nil
+	}
 
 	if len(results) == 0 {
 		return NewResult("No lint issues found"), nil
