@@ -72,11 +72,16 @@ wetwire-honeycomb build ./queries -o output.json
 
 ## Documentation
 
-- [Quick Start](docs/QUICK_START.md) - Get started in 5 minutes
-- [CLI Reference](docs/CLI.md) - Complete command documentation
-- [Kiro Integration](docs/HONEYCOMB-KIRO-CLI.md) - AI-assisted query design with Kiro CLI
-- [Lint Rules](docs/LINT_RULES.md) - All validation rules
+**Getting Started:**
+- [Quick Start](docs/QUICK_START.md) - 5-minute tutorial
 - [FAQ](docs/FAQ.md) - Common questions
+
+**Reference:**
+- [CLI Reference](docs/CLI.md) - All commands
+- [Lint Rules](docs/LINT_RULES.md) - WHC rule reference
+
+**Advanced:**
+- [Kiro Integration](docs/HONEYCOMB-KIRO-CLI.md) - AI-assisted query design
 
 ## Part of wetwire
 

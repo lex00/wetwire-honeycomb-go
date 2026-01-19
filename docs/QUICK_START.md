@@ -9,15 +9,7 @@ Get started with wetwire-honeycomb-go in minutes.
 
 ## Installation
 
-```bash
-go install github.com/lex00/wetwire-honeycomb-go/cmd/wetwire-honeycomb@latest
-```
-
-Or add as a dependency:
-
-```bash
-go get github.com/lex00/wetwire-honeycomb-go
-```
+See [README.md](../README.md#installation) for installation instructions.
 
 ## Create your first query
 

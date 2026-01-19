@@ -64,13 +64,7 @@ Handles:
 
 ### Linting
 
-Domain-specific lint rules with code `WHC` (Wetwire Honeycomb):
-
-- **WHC001**: Use typed calculations instead of strings
-- **WHC002**: Use direct filter functions instead of raw maps
-- **WHC003**: Validate dataset references
-- **WHC004**: Check time range validity
-- **WHC005**: Ensure calculation names are unique
+Uses the `WHC` prefix (Wetwire Honeycomb). See [docs/LINT_RULES.md](docs/LINT_RULES.md) for the complete rule reference.
 
 ## Key Principles
 
