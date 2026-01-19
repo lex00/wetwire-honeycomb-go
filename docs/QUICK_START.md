@@ -143,6 +143,17 @@ Orders: []query.Order{
 },
 ```
 
+## AI-Assisted Design
+
+Let AI help create your Honeycomb queries:
+
+```bash
+# No API key required - uses Claude CLI
+wetwire-honeycomb design "Create a query to find slow API requests with high error rates"
+```
+
+The design command creates Go code following wetwire patterns, runs linting, and builds the final Query JSON.
+
 ## Next steps
 
 - Read the [CLI Reference](CLI.md) for all commands

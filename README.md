@@ -70,6 +70,17 @@ wetwire-honeycomb build ./queries -o output.json
 | `init` | Scaffold a new project |
 | `graph` | Visualize query dependencies |
 
+## AI-Assisted Design
+
+Use the `design` command for interactive, AI-assisted query creation:
+
+```bash
+# No API key required - uses Claude CLI
+wetwire-honeycomb design "Create a query to find slow API requests"
+```
+
+Uses [Claude CLI](https://claude.ai/download) by default (no API key required). Falls back to Anthropic API if Claude CLI is not installed.
+
 ## Documentation
 
 **Getting Started:**
@@ -79,9 +90,6 @@ wetwire-honeycomb build ./queries -o output.json
 **Reference:**
 - [CLI Reference](docs/CLI.md) - All commands
 - [Lint Rules](docs/LINT_RULES.md) - WHC rule reference
-
-**Advanced:**
-- [Kiro Integration](docs/HONEYCOMB-KIRO-CLI.md) - AI-assisted query design
 
 ## Part of wetwire
 
