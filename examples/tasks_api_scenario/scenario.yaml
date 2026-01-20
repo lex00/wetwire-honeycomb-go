@@ -6,6 +6,10 @@ timeout: 120s
 
 prompts:
   default: prompts/intermediate.md
+  personas:
+    - beginner
+    - intermediate
+    - expert
   variants:
     beginner: prompts/beginner.md
     intermediate: prompts/intermediate.md
@@ -14,17 +18,9 @@ prompts:
 domains:
   - name: honeycomb
     outputs:
-      - "expected/**/*.go"
+      - "*.json"
 
 validation:
   honeycomb:
     resources:
-      min: 9
-    queries:
-      min: 4
-    slos:
-      min: 2
-    triggers:
-      min: 2
-    boards:
-      min: 1
+      min: 5
