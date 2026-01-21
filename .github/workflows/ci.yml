@@ -24,9 +24,10 @@ jobs:
         run: go test -coverprofile=coverage.out -covermode=atomic ./...
 
       - name: Upload coverage report
-        uses: codecov/codecov-action@v4
+        uses: codecov/codecov-action@v5
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
+          slug: lex00/wetwire-honeycomb-go
           files: coverage.out
           fail_ci_if_error: false
 
