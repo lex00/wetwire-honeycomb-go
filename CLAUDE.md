@@ -304,6 +304,29 @@ go build ./cmd/wetwire-honeycomb
 go install github.com/lex00/wetwire-honeycomb-go/cmd/wetwire-honeycomb@latest
 ```
 
+
+## Diff
+
+Compare Honeycomb query configurations semantically:
+
+```bash
+# Compare two files
+wetwire-honeycomb diff file1 file2
+
+# JSON output for CI/CD
+wetwire-honeycomb diff file1 file2 -f json
+
+# Ignore array ordering differences
+wetwire-honeycomb diff file1 file2 --ignore-order
+```
+
+The diff command performs semantic comparison by resource name, detecting:
+- Added resources
+- Removed resources
+- Modified resources (with property-level change details)
+
+Exit code is 1 if differences are found, enabling CI pipeline validation.
+
 ## Key Files
 
 | File | Purpose |
