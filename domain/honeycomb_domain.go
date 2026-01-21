@@ -9,6 +9,7 @@ import (
 
 	coredomain "github.com/lex00/wetwire-core-go/domain"
 	"github.com/lex00/wetwire-honeycomb-go/board"
+	"github.com/lex00/wetwire-honeycomb-go/internal/differ"
 	"github.com/lex00/wetwire-honeycomb-go/internal/discover"
 	"github.com/lex00/wetwire-honeycomb-go/internal/lint"
 	"github.com/lex00/wetwire-honeycomb-go/internal/serialize"
@@ -49,6 +50,7 @@ var (
 	_ coredomain.Domain        = (*HoneycombDomain)(nil)
 	_ coredomain.ListerDomain  = (*HoneycombDomain)(nil)
 	_ coredomain.GrapherDomain = (*HoneycombDomain)(nil)
+	_ coredomain.DifferDomain  = (*HoneycombDomain)(nil)
 )
 
 // Name returns "honeycomb"
@@ -89,6 +91,11 @@ func (d *HoneycombDomain) Lister() coredomain.Lister {
 // Grapher returns the Honeycomb grapher implementation
 func (d *HoneycombDomain) Grapher() coredomain.Grapher {
 	return &honeycombGrapher{}
+}
+
+// Differ returns the Honeycomb differ implementation
+func (d *HoneycombDomain) Differ() coredomain.Differ {
+	return differ.New()
 }
 
 // CreateRootCommand creates the root command using the domain interface.
