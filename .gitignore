@@ -3,3 +3,4 @@ results/
 
 # SVG recordings
 *.svg
+!docs/wetwire.svg
