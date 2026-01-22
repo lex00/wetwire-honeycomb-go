@@ -1,4 +1,7 @@
-# Import Workflow
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="./wetwire-dark.svg">
+  <img src="./wetwire-light.svg" width="100" height="67">
+</picture>
 
 This document describes the workflow for importing existing Honeycomb Query JSON into wetwire-honeycomb-go code.
 

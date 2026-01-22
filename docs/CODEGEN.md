@@ -1,4 +1,7 @@
-# Code Generation
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="./wetwire-dark.svg">
+  <img src="./wetwire-light.svg" width="100" height="67">
+</picture>
 
 This document describes how wetwire-honeycomb-go generates Honeycomb Query JSON from Go declarations.
 

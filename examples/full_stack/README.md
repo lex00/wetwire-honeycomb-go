@@ -1,4 +1,7 @@
-# Full Stack Example
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="../../docs/wetwire-dark.svg">
+  <img src="../../docs/wetwire-light.svg" width="100" height="67">
+</picture>
 
 This example demonstrates the complete Query→SLO→Trigger→Board chain in wetwire-honeycomb-go. It shows how to build a comprehensive monitoring setup where queries serve as the foundation for SLOs, triggers, and dashboards.
 

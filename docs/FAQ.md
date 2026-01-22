@@ -1,4 +1,7 @@
-# wetwire-honeycomb-go FAQ
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="./wetwire-dark.svg">
+  <img src="./wetwire-light.svg" width="100" height="67">
+</picture>
 
 This FAQ covers questions specific to Honeycomb query synthesis. For general wetwire questions, see the [central FAQ](https://github.com/lex00/wetwire/blob/main/docs/FAQ.md).
 
