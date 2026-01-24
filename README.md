@@ -7,9 +7,10 @@
 # wetwire-honeycomb-go
 
 [![CI](https://github.com/lex00/wetwire-honeycomb-go/actions/workflows/ci.yml/badge.svg)](https://github.com/lex00/wetwire-honeycomb-go/actions/workflows/ci.yml)
+[![codecov](https://codecov.io/gh/lex00/wetwire-honeycomb-go/branch/main/graph/badge.svg)](https://codecov.io/gh/lex00/wetwire-honeycomb-go)
+[![Go](https://img.shields.io/badge/Go-1.23-blue?logo=go)](https://golang.org/)
 [![Go Reference](https://pkg.go.dev/badge/github.com/lex00/wetwire-honeycomb-go.svg)](https://pkg.go.dev/github.com/lex00/wetwire-honeycomb-go)
 [![Go Report Card](https://goreportcard.com/badge/github.com/lex00/wetwire-honeycomb-go)](https://goreportcard.com/report/github.com/lex00/wetwire-honeycomb-go)
-[![Coverage](https://codecov.io/gh/lex00/wetwire-honeycomb-go/branch/main/graph/badge.svg)](https://codecov.io/gh/lex00/wetwire-honeycomb-go)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
 Honeycomb query synthesis for Go - type-safe declarations that compile to Honeycomb Query JSON.
