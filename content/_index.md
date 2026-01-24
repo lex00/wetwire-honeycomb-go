@@ -4,6 +4,7 @@ title: "Wetwire Honeycomb"
 
 [![Go Reference](https://pkg.go.dev/badge/github.com/lex00/wetwire-honeycomb-go.svg)](https://pkg.go.dev/github.com/lex00/wetwire-honeycomb-go)
 [![CI](https://github.com/lex00/wetwire-honeycomb-go/actions/workflows/ci.yml/badge.svg)](https://github.com/lex00/wetwire-honeycomb-go/actions/workflows/ci.yml)
+[![codecov](https://codecov.io/gh/lex00/wetwire-honeycomb-go/graph/badge.svg)](https://codecov.io/gh/lex00/wetwire-honeycomb-go)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
 Generate Honeycomb queries, boards, and SLOs from Go structs with AI-assisted design.
