@@ -40,15 +40,3 @@ theme = "wetwire"
     name = "FAQ"
     pageRef = "/faq"
     weight = 40
-  [[menus.main]]
-    name = "Boards"
-    pageRef = "/boards"
-    weight = 50
-  [[menus.main]]
-    name = "SLOs"
-    pageRef = "/slos"
-    weight = 60
-  [[menus.main]]
-    name = "Triggers"
-    pageRef = "/triggers"
-    weight = 70
