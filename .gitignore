@@ -4,3 +4,10 @@ results/
 # SVG recordings
 *.svg
 !docs/wetwire*.svg
+
+# Hugo build output
+public/
+resources/_gen/
+
+# Allow theme static files
+!themes/wetwire/static/wetwire.svg

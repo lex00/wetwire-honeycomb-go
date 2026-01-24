@@ -1,0 +1,54 @@
+baseURL = "https://lex00.github.io/wetwire-honeycomb-go/"
+languageCode = "en-us"
+title = "Wetwire Honeycomb"
+
+# Theme is added as git submodule in themes/wetwire
+theme = "wetwire"
+
+# Clean URLs
+[permalinks]
+  [permalinks.page]
+    '/' = '/:slug/'
+  [permalinks.section]
+    '/' = '/:slug/'
+
+# Syntax highlighting
+[markup]
+  [markup.highlight]
+    style = "dracula"
+    lineNos = false
+    tabWidth = 4
+  [markup.goldmark]
+    [markup.goldmark.renderer]
+      unsafe = true
+
+# Main menu
+[menus]
+  [[menus.main]]
+    name = "CLI"
+    pageRef = "/cli"
+    weight = 10
+  [[menus.main]]
+    name = "Quick Start"
+    pageRef = "/quick-start"
+    weight = 20
+  [[menus.main]]
+    name = "Examples"
+    pageRef = "/examples"
+    weight = 30
+  [[menus.main]]
+    name = "FAQ"
+    pageRef = "/faq"
+    weight = 40
+  [[menus.main]]
+    name = "Boards"
+    pageRef = "/boards"
+    weight = 50
+  [[menus.main]]
+    name = "SLOs"
+    pageRef = "/slos"
+    weight = 60
+  [[menus.main]]
+    name = "Triggers"
+    pageRef = "/triggers"
+    weight = 70
